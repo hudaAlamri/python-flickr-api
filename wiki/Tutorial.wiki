@@ -1,0 +1,66 @@
+# Tutorial
+
+= Introduction =
+
+This document tries to show the basic usage of python_api.
+
+= Authentication =
+
+Authentication process requires several steps which are handled by the 'AuthHandler' object:
+
+  # create the authentication object
+{{{
+>>> a = flickr_api.AuthHandler()
+}}}
+  # go to the authorization url and get the verifier code. Two arguments are needed : the 'call_back_url' which is the url to which the user will be redirected after granting permissions (default corresponds to the 'flickr.test.echo' method of the Flickr API; 'need_perms' which corresponds to  the needed authorization level('read', 'write' or 'delete'):
+{{{ 
+>>> a.get_authorization_url(call_back_url,needed_perms)
+'http://www.flickr.com/services/oauth/authorize?oauth_token=xxxx-xxxx&perms=needed_perms'
+}}} 
+  # set the verifier :
+{{{
+>>> a.set_verifier("xxxx")
+}}}
+  # set the authorization handler for the session:
+{{{
+>>> flickr_api.set_authorization_handler(a)
+}}}
+
+The authorization handler can be saved and loaded to a file:
+{{{
+>>> a.save(filename)
+>>> a = flickr_api.AuthHandler.load(filename)
+}}}
+
+== Basic usage ==
+
+  * Retrieving a user :
+{{{
+>>> user = flickr_api.Person.findByUsername(username)
+}}}
+  * Retrieving the authenticated user :
+{{{
+>>> user = flickr_api.test.login()
+}}}
+  * Getting photos of a user :
+{{{
+>>> photos,resp_infos = user.getPhotos()       # if authenticated
+>>> photos,resp_infos = user.getPublicPhotos() # otherwise
+>>> print photos  # the list of Photo objects
+[Photo(id = 'xxxxx',title = 'title1'),
+ Photo(id = 'yyyyy',title = 'title2'),
+ ....]
+>>> print resp_infos # infos about the response
+Info(page = 1,perpage = 100,pages = 1,total = 5)
+>>> p = photos[0]
+>>> p.getPageUrl() # main page for the photograph
+u'http://www.flickr.com/photos/xxxxxxx/yyyyyyyy'
+>>> p.getPhotoUrl(size_label = 'Large') # page for a given size
+u'http://www.flickr.com/photos/xxxxxx/yyyyyy/sizes/l/'
+>>> p.getPhotoFile(size_label = 'Thumbnail') # url to the photo file
+u'http://farm6.static.flickr.com/xxxx/yyyy_zzzz_t.jpg'
+>>> p.save(filename, size_label = 'Medium 640') # downloading the photo file
+>>> comment = p.addComment(comment_text = "A comment") # adding a comment
+>>> comment.delete() # deleting the comment
+
+}}}
