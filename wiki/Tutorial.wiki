@@ -1,8 +1,6 @@
-# Tutorial
-
 = Introduction =
 
-This document tries to show the basic usage of python_api.
+This document tries to show some basic usage of python_api.
 
 = Authentication =
 
@@ -32,7 +30,7 @@ The authorization handler can be saved and loaded to a file:
 >>> a = flickr_api.AuthHandler.load(filename)
 }}}
 
-== Basic usage ==
+== Object Oriented interface usage ==
 
   * Retrieving a user :
 {{{
@@ -63,4 +61,31 @@ u'http://farm6.static.flickr.com/xxxx/yyyy_zzzz_t.jpg'
 >>> comment = p.addComment(comment_text = "A comment") # adding a comment
 >>> comment.delete() # deleting the comment
 
+}}}
+
+== Direct API methods calls ==
+
+It is also possible to directly call the api methods using an intuitive syntax. In this case the output is the raw output from the server :
+
+{{{
+>>> from flickr_api.api import flickr
+>>> print flickr.reflection.getMethodInfo(method_name = "flickr.photos.getInfo")
+}}}
+{{{
+<?xml version="1.0" encoding="utf-8" ?>
+<rsp stat="ok">
+<method name="flickr.photos.getInfo" needslogin="0" needssigning="0" requiredperms="0">
+	<description>Get information about a photo. The calling user must have permission to view the photo.</description>
+	<response>...</response>
+	<explanation>...</explanation>
+</method>
+<arguments>
+	<argument name="api_key" optional="0">Your API application key. &lt;a href=&quot;/services/api/misc.api_keys.html&quot;&gt;See here&lt;/a&gt; for more details.</argument>
+        ...
+</arguments>
+<errors>
+	<error code="1" message="Photo not found.">The photo id was either invalid or was for a photo not viewable by the calling user.</error>
+	...
+</errors>
+</rsp>
 }}}
