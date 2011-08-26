@@ -31,7 +31,7 @@ The authorization handler can be saved and loaded to a file:
 }}}
 
 
-== Direct API methods calls ==
+= Direct API methods calls =
 
 It is also possible to directly call the api methods using an intuitive syntax. In this case the output is the raw output from the server :
 
@@ -58,37 +58,71 @@ It is also possible to directly call the api methods using an intuitive syntax. 
 </rsp>
 }}}
 
+= Object Oriented interface usage =
+== Retrieving a user ==
 
-
-== Object Oriented interface usage ==
-
-  * Retrieving a user :
+To have direct access to user you have 3 methods
+ # by username
 {{{
 >>> user = flickr_api.Person.findByUsername(username)
 }}}
-  * Retrieving the authenticated user :
+ # by email
+{{{
+>>> user = flickr_api.Person.findByUsername(username)
+}}}
+ # If an authentication handlier is set, you can retrieve the authenticated user with  :
 {{{
 >>> user = flickr_api.test.login()
 }}}
-  * Getting photos of a user :
+
+== Managing Photos ==
+
+ * Get photos from a user
 {{{
 >>> photos,resp_infos = user.getPhotos()       # if authenticated
 >>> photos,resp_infos = user.getPublicPhotos() # otherwise
->>> print photos  # the list of Photo objects
-[Photo(id = 'xxxxx',title = 'title1'),
- Photo(id = 'yyyyy',title = 'title2'),
- ....]
->>> print resp_infos # infos about the response
-Info(page = 1,perpage = 100,pages = 1,total = 5)
->>> p = photos[0]
->>> p.getPageUrl() # main page for the photograph
-u'http://www.flickr.com/photos/xxxxxxx/yyyyyyyy'
->>> p.getPhotoUrl(size_label = 'Large') # page for a given size
-u'http://www.flickr.com/photos/xxxxxx/yyyyyy/sizes/l/'
->>> p.getPhotoFile(size_label = 'Thumbnail') # url to the photo file
-u'http://farm6.static.flickr.com/xxxx/yyyy_zzzz_t.jpg'
+}}}
+ * Download a photo 
+{{{
 >>> p.save(filename, size_label = 'Medium 640') # downloading the photo file
->>> comment = p.addComment(comment_text = "A comment") # adding a comment
+}}}
+ * Upload a photo
+{{{
+>>> flickr_api.upload(photo = photo_object, title = "My title")
+}}}
+ * Add/Delete a comment
+{{{
+>>> comment = photo.addComment(comment_text = "A comment") # adding a comment
 >>> comment.delete() # deleting the comment
+}}}
+ * Retrieve the comments
+{{{
+>>> comments = photo.getComments()
+>>> for comment in comments : print comment.text
+}}}
 
+== Managing Photosets (aka Albums) ==
+ * Get the photosets of a user
+{{{
+>>> photosets = user.getPhotosets()
+}}}
+ * Create a photoset
+{{{
+>>> photoset = flickr_api.Photoset.create(title = "The title of the photoset", primary_photo = cover_photo)
+}}}
+ * Delete a photoset
+{{{
+>>> photoset.delete()
+}}}
+ * Get the photos of a photoset
+{{{
+>>> photos = photoset.getPhotos()
+}}}
+ * Add a photo to a set
+{{{
+>>> photoset.addPhoto(photo = a_photo)
+}}}
+ * Add a comment to a photoset
+{{{
+>>> photoset.addComment(comment_text = "the text of the comment...")
 }}}
