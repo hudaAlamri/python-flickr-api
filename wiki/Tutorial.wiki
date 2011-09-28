@@ -6,16 +6,17 @@ This document tries to show some basic usage of python_api.
 
 Authentication process requires several steps which are handled by the 'AuthHandler' object:
 
-  # create the authentication object
+  # create the authentication object.
+  # you can optinnally give a callback url which is the url to which the user will be redirected after the authorisations have been granted (default corresponds to the 'flickr.test.echo' method of the Flickr API).
 {{{
->>> a = flickr_api.AuthHandler()
+>>> a = flickr_api.AuthHandler(callback = a_call_back_url)
 }}}
-  # go to the authorization url and get the verifier code. Two arguments are needed : the 'call_back_url' which is the url to which the user will be redirected after granting permissions (default corresponds to the 'flickr.test.echo' method of the Flickr API; 'need_perms' which corresponds to  the needed authorization level('read', 'write' or 'delete'):
+  # go to the authorization url and get the verifier code. 'needed_perms' correspond to the level of permissions to obtain it can be "read","write" or "delete" (default is "read"):
 {{{ 
->>> a.get_authorization_url(call_back_url,needed_perms)
+>>> a.get_authorization_url(needed_perms)
 'http://www.flickr.com/services/oauth/authorize?oauth_token=xxxx-xxxx&perms=needed_perms'
 }}} 
-  # set the verifier :
+  # set the verifier, which corresponds to the value of the "oauth_verifier" attribute sent as a query to the callback url:
 {{{
 >>> a.set_verifier("xxxx")
 }}}
