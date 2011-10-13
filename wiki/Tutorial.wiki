@@ -1,6 +1,6 @@
 = Introduction =
 
-This document tries to show some basic usage of python_api.
+This document tries to show some basic usage of flickr_api.
 
 = Authentication =
 
