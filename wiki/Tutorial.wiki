@@ -4,38 +4,57 @@ This document tries to show some basic usage of flickr_api.
 
 = Authentication =
 
-Authentication process requires several steps which are handled by the 'AuthHandler' object:
+If your application needs to modify data or to access non public material, it will require an authentication token. The AuthHandler object is designed to deal with the authentication process.
 
-  # create the authentication object.
-  # you can optinnally give a callback url which is the url to which the user will be redirected after the authorisations have been granted (default corresponds to the 'flickr.test.echo' method of the Flickr API).
+To get an authentication token, the AuthHandler will ask an authorisation request. It will then provide an url at which the user should be redirected so he can grant the required permissions. At the end of the authorisation process a verifier code will be provided. This code must be given to the AuthHandler object which will then be able to get the authentication token.
+
+Here is an example of how to get this authentication token.
+
 {{{
->>> a = flickr_api.AuthHandler(callback = a_call_back_url)
-}}}
-  # go to the authorization url and get the verifier code. 'needed_perms' correspond to the level of permissions to obtain it can be "read","write" or "delete" (default is "read"):
-{{{ 
->>> a.get_authorization_url(needed_perms)
-'http://www.flickr.com/services/oauth/authorize?oauth_token=xxxx-xxxx&perms=needed_perms'
-}}} 
-  # set the verifier, which corresponds to the value of the "oauth_verifier" attribute sent as a query to the callback url:
-{{{
->>> a.set_verifier("xxxx")
-}}}
-  # set the authorization handler for the session:
-{{{
->>> flickr_api.set_authorization_handler(a)
+>>> import flickr_api
+>>> a = flickr_api.AuthHandler() #creates the AuthHandler object
+>>> perms = "read" # set the required permissions
+>>> url = a.get_authorization_url(perms)
+>>> print url
 }}}
 
-The authorization handler can be saved and loaded to a file:
+At this time you should copy and paste the printed url in your favorite web browser. Login to Flickr if it is needed and accept the requested permissions.
+You will be redirected to an xml page in which there is a <oauth_verifier> tag. The content of this tag is the verifier that needs to be given to the AuthHandler.
+
+Note that the url you you are redirected to after you have seccessfully granted the permissions is called the "callback" url. The xml page you have seen corresponds to the default callback url. Within a web application you are supposed to redirect the user to Flickr for the authorisation process. Once it is completed you would like the user to be redirected to a url on your own website which will read automatically the verifier code in the query part of the url. This can be done through the "callback" argument of the AuthHandler constructor. In this case you will want to replace the second line above by something like:
+
+{{{
+a = flickr_api.AuthHandler(callback = "http://www.mysite.com/get_verifier/")
+}}}
+
+Let's come back to our example. In the xml page, copy the content of the <oauth_verifier> tag and give it to the AuthHandler object.
+
+{{{
+>>> a.set_verifier("the verifier code")
+>>> flickr_api.set_authorization_handler(a) # set the AuthHandler for the session
+}}}
+
+That's it! You are ready to play with your account. The authorisation process is supposed to be done only once so you might want to save the Authentication token:
 {{{
 >>> a.save(filename)
->>> a = flickr_api.AuthHandler.load(filename)
 }}}
-
+Next time you want to access your account you just need to reload it:
+{{{
+>>> a = flickr_api.AuthHandler.load(filename)
+>>> flickr_api.set_authorization_handler(a)
+}}}
+Actually there is a shortcut for that:
+{{{
+>>> flickr_api.set_authorization_handler(filename)
+}}}
 
 = Direct API methods calls =
 
-It is also possible to directly call the api methods using an intuitive syntax. In this case the output is the raw output from the server :
+You can access the flickr api in two different ways the first one directly calls the api methods with a syntax close to the one that you will find on the api documentation on Flickr's site.
 
+The answers are xml strings or JSON strings and you will have to parse them yourself. This method is recommended for experimented users only. For other users please refer to the Object Oriented api.
+
+Here is an example of method call:
 {{{
 >>> from flickr_api.api import flickr
 >>> print flickr.reflection.getMethodInfo(method_name = "flickr.photos.getInfo")
