@@ -19,7 +19,7 @@ Here is an example of how to get this authentication token.
 }}}
 
 At this time you should copy and paste the printed url in your favorite web browser. Login to Flickr if it is needed and accept the requested permissions.
-You will be redirected to an xml page in which there is a <oauth_verifier> tag. The content of this tag is the verifier that needs to be given to the AuthHandler.
+You will be redirected to an xml page in which there is a "oauth_verifier" tag. The content of this tag is the verifier that needs to be given to the AuthHandler.
 
 Note that the url you you are redirected to after you have seccessfully granted the permissions is called the "callback" url. The xml page you have seen corresponds to the default callback url. Within a web application you are supposed to redirect the user to Flickr for the authorisation process. Once it is completed you would like the user to be redirected to a url on your own website which will read automatically the verifier code in the query part of the url. This can be done through the "callback" argument of the AuthHandler constructor. In this case you will want to replace the second line above by something like:
 
@@ -27,7 +27,7 @@ Note that the url you you are redirected to after you have seccessfully granted 
 a = flickr_api.AuthHandler(callback = "http://www.mysite.com/get_verifier/")
 }}}
 
-Let's come back to our example. In the xml page, copy the content of the <oauth_verifier> tag and give it to the AuthHandler object.
+Let's come back to our example. In the xml page, copy the content of the "oauth_verifier" tag and give it to the AuthHandler object.
 
 {{{
 >>> a.set_verifier("the verifier code")
