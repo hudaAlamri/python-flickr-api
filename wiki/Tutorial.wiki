@@ -41,11 +41,11 @@ That's it! You are ready to play with your account. The authorisation process is
 Next time you want to access your account you just need to reload it:
 {{{
 >>> a = flickr_api.AuthHandler.load(filename)
->>> flickr_api.set_authorization_handler(a)
+>>> flickr_api.set_authentication_handler(a)
 }}}
 Actually there is a shortcut for that:
 {{{
->>> flickr_api.set_authorization_handler(filename)
+>>> flickr_api.set_authentication_handler(filename)
 }}}
 
 = Direct API methods calls =
