@@ -88,7 +88,7 @@ To have direct access to user you have 3 methods
 }}}
  # by email
 {{{
->>> user = flickr_api.Person.findByUsername(username)
+>>> user = flickr_api.Person.findByEmail(email)
 }}}
  # If an authentication handlier is set, you can retrieve the authenticated user with  :
 {{{
