@@ -14,8 +14,8 @@ $ python setup.py install # for system wide installation
 
 3) Configure API keys
 You need to set the API keys provided by flickr.
-For this set the value in $INSTALL_DIR/flickr_api/flickr_keys.py.
-It should look like :
+For this you must create a file called $INSTALL_DIR/flickr_api/flickr_keys.py.
+Then set the key values. It should look like :
 
 API_KEY = 'xxxxxxxxxxxxxxxxxxx'
 API_SECRET = 'yyyyyyyyyyyyyyy'
