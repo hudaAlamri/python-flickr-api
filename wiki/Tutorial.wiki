@@ -163,3 +163,31 @@ To have direct access to user you have 3 methods
 {{{
 >>> photoset.addComment(comment_text = "the text of the comment...")
 }}}
+
+== Cache ==
+
+It is possible to cache frequent request to avoid repeated access to Flickr site:
+{{{
+import flickr_api
+flickr_api.enable_cache()
+}}}
+
+You can also provide customized cache object:
+{{{
+import flickr_api
+from flickr_api.cache import SimpleCache
+flickr_api.enable_cache(SimpleCache(timeout = 300,max_entries = 10)
+}}}
+
+The code for caching comes from the Stuvel's python api. It should then be compliant with Django caching system.
+
+{{{
+import flickr_api
+from django.core.cache import cache
+flickr_api.enable_cache(cache)
+}}}
+
+To disable the caching system:
+{{{
+flickr_api.disable_cache()
+}}}
