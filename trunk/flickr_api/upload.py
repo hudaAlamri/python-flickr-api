@@ -16,11 +16,11 @@
 
 
 import method_call
+from method_call import API_KEY
 from base import FlickrError, FlickrAPIError
 from objects import Photo,UploadTicket
 import auth
 import multipart
-from flickr_keys import API_KEY
 import os
 from xml.etree import ElementTree as ET
 

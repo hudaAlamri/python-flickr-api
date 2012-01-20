@@ -14,14 +14,17 @@ import hashlib
 import json
 
 from base import FlickrError,FlickrAPIError
+from cache import SimpleCache
+
+API_KEY = ""
+API_SECRET = ""
 
 try :
     import flickr_keys 
     API_KEY = flickr_keys.API_KEY
-    API_SECRET = flickr_api.API_SECRET
+    API_SECRET = flickr_keys.API_SECRET
 except ImportError :
-    API_KEY = ""
-    API_SECRET = ""
+    pass
 
 def set_keys(api_key,api_secret):
     global API_KEY,API_SECRET
@@ -29,6 +32,17 @@ def set_keys(api_key,api_secret):
     API_SECRET = api_secret
 
 REST_URL = "http://api.flickr.com/services/rest/"
+
+CACHE = None
+
+def enable_cache(cache_object = None):
+    global CACHE
+    CACHE = cache_object or SimpleCache()
+
+
+def disable_cache():
+    global CACHE
+    CACHE = None
 
 def call_api(api_key = API_KEY, api_secret = API_SECRET, auth_handler = None, needssigning = False,request_url = REST_URL, raw = False,**args):
     """
@@ -63,6 +77,9 @@ def call_api(api_key = API_KEY, api_secret = API_SECRET, auth_handler = None, ne
     else :
          data = auth_handler.complete_parameters(url = request_url,params = args).to_postdata()
 
+    if CACHE is not None :
+        return CACHE.get(data)
+        
     req = urllib2.Request(request_url,data)
     
         
@@ -84,6 +101,8 @@ def call_api(api_key = API_KEY, api_secret = API_SECRET, auth_handler = None, ne
         raise FlickrAPIError(resp["code"],resp["message"])
 
     resp = clean_content(resp)
+    if CACHE is not None :
+        CACHE.set(data,resp)
 
     return resp
 

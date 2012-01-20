@@ -36,7 +36,7 @@ from oauth import oauth
 import time
 import urlparse
 import urllib2
-from flickr_keys import API_KEY, API_SECRET
+from method_call import API_KEY, API_SECRET
 
 TOKEN_REQUEST_URL = "http://www.flickr.com/services/oauth/request_token"
 AUTHORIZE_URL = "http://www.flickr.com/services/oauth/authorize"

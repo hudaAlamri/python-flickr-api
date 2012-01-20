@@ -23,11 +23,15 @@
 
 from objects import *
 import objects
-import api
 from auth import AuthHandler
 import upload as Upload
 from upload import upload,replace
-from method_call import set_keys
+from method_call import set_keys,enable_cache,disable_cache
+try :
+    # will fail is API keys are not set yet
+    import api
+except ImportError :
+    pass
 
 def set_auth_handler(auth_handler):
     if isinstance(auth_handler,str):
