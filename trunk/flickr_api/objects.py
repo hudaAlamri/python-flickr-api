@@ -1881,7 +1881,7 @@ class Photo(FlickrObject):
             Note: This method requires an HTTP POST request.
         
         Arguments:
-            user_id (Required)
+            user or user_id (Required)
                 The NSID of the user to add to the photo.
             person_x (Optional)
                 The left-most pixel co-ordinate of the box around the person.
@@ -3723,7 +3723,7 @@ class Photoset(FlickrObject):
             args["photoset_ids"] = [ ps.id for ps in photosets ]
         except KeyError : pass
         
-        photoset_ids = arsg["photoset_ids"]
+        photoset_ids = args["photoset_ids"]
         if isinstance(photoset_ids,list):
             args["photoset_ids"] = ", ".join(photoset_ids)
         
@@ -4773,7 +4773,7 @@ class stats:
 
     @staticmethod
     def getPhotosetDomains(**args):
-        """ method: flickr.stats.getPhotoDomains
+        """ method: flickr.stats.getPhotosetDomains
            
             Get a list of referring domains for a photo
         
