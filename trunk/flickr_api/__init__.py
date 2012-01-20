@@ -27,6 +27,7 @@ import api
 from auth import AuthHandler
 import upload as Upload
 from upload import upload,replace
+from method_call import set_keys
 
 def set_auth_handler(auth_handler):
     if isinstance(auth_handler,str):

@@ -15,7 +15,18 @@ import json
 
 from base import FlickrError,FlickrAPIError
 
-from flickr_keys import API_KEY, API_SECRET
+try :
+    import flickr_keys 
+    API_KEY = flickr_keys.API_KEY
+    API_SECRET = flickr_api.API_SECRET
+except ImportError :
+    API_KEY = ""
+    API_SECRET = ""
+
+def set_keys(api_key,api_secret):
+    global API_KEY,API_SECRET
+    API_KEY = api_key
+    API_SECRET = api_secret
 
 REST_URL = "http://api.flickr.com/services/rest/"
 
