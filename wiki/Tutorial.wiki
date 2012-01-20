@@ -2,6 +2,23 @@
 
 This document tries to show some basic usage of flickr_api.
 
+= Flickr keys =
+
+Any application using the Flickr API needs to have a api key and a secret key. Both are provided by Flickr. Please refer to the Flickr instructions to learn how to get thoses keys.
+
+To be able to use these keys in your application you have two ways:
+ # Set the key information using the 'set_keys' function. so any application using this API should start with something like:
+{{{
+import flickr_api
+flickr_api.set_keys(api_key = 'my_api_key', api_secret = 'my_secret')
+}}}
+ # provide a flickr_keys.py setting module with the keys information. It should look like:
+{{{
+API_KEY =  'my_api_key'
+API_SECRET = 'my_secret'
+}}}
+This module should be located in your flickr_api directory or available from your PYTHON_PATH.
+
 = Authentication =
 
 If your application needs to modify data or to access non public material, it will require an authentication token. The AuthHandler object is designed to deal with the authentication process.
@@ -108,7 +125,7 @@ To have direct access to user you have 3 methods
 }}}
  * Upload a photo
 {{{
->>> flickr_api.upload(photo = photo_object, title = "My title")
+>>> flickr_api.upload(photo_file = "path_to_the_photo_file", title = "My title")
 }}}
  * Add/Delete a comment
 {{{
