@@ -279,7 +279,7 @@ class Collection(FlickrObject):
         try : args["user_id"] = args.pop("user").id
         except KeyError : pass
         
-        r = method_call.call_api(method = "flickr.collections.getTree",auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.collections.getTree",**args)
 
         collections = _check_list(r["collections"])
         collections_ = []
@@ -502,7 +502,7 @@ class Gallery(FlickrObject):
         pp_farm = gallery.pop("primary_photo_farm")
         pp_server = gallery.pop("primary_photo_server")
         
-        gallery["primary_photo"] = Gallery(id = pp_id, secret = pp_secret, server = pp_server, farm = pp_farm)
+        gallery["primary_photo"] = Photo(id = pp_id, secret = pp_secret, server = pp_server, farm = pp_farm)
         
         return gallery
     
@@ -1141,7 +1141,7 @@ class Person(FlickrObject):
             Returns :
                 The found user object
         """        
-        r = method_call.call_api(method = "flickr.people.findByEmail", find_email = find_email,auth_handler = AUTH_HANDLER)
+        r = method_call.call_api(method = "flickr.people.findByEmail", find_email = find_email)
         return Person(**r["user"])
 
     @staticmethod
@@ -1162,7 +1162,7 @@ class Person(FlickrObject):
                 The found user object.
 
             """
-        r = method_call.call_api(method = "flickr.people.findByUsername", username = username,auth_handler = AUTH_HANDLER)
+        r = method_call.call_api(method = "flickr.people.findByUsername", username = username)
         user = r["user"]
         return Person(**r["user"])
 
