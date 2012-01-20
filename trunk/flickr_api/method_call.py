@@ -44,6 +44,14 @@ def disable_cache():
     global CACHE
     CACHE = None
 
+def send_request(url,data):
+    req = urllib2.Request(url,data)
+    try :
+        return urllib2.urlopen(req).read()
+    except urllib2.HTTPError , e:
+        raise FlickrError( e.read().split('&')[0] )
+    
+
 def call_api(api_key = API_KEY, api_secret = API_SECRET, auth_handler = None, needssigning = False,request_url = REST_URL, raw = False,**args):
     """
         Performs the calls to the Flickr REST interface.
@@ -76,17 +84,13 @@ def call_api(api_key = API_KEY, api_secret = API_SECRET, auth_handler = None, ne
         
     else :
          data = auth_handler.complete_parameters(url = request_url,params = args).to_postdata()
-
-    if CACHE is not None :
-        return CACHE.get(data)
-        
-    req = urllib2.Request(request_url,data)
     
-        
-    try :
-        resp = urllib2.urlopen(req).read()
-    except urllib2.HTTPError , e:
-        raise FlickrError( e.read().split('&')[0] )
+    
+    if CACHE is None :
+        resp = send_request(request_url,data)
+    else :
+        resp = CACHE.get(data) or send_request(request_url,data)
+        if data not in CACHE : CACHE.set(data,resp)
 
     if raw :
         return resp
@@ -101,8 +105,8 @@ def call_api(api_key = API_KEY, api_secret = API_SECRET, auth_handler = None, ne
         raise FlickrAPIError(resp["code"],resp["message"])
 
     resp = clean_content(resp)
-    if CACHE is not None :
-        CACHE.set(data,resp)
+
+
 
     return resp
 
