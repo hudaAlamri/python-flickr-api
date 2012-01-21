@@ -24,6 +24,7 @@ import method_call
 from  base import FlickrDictObject,FlickrObject,FlickrError,dict_converter
 import urllib2
 from UserList import UserList
+import auth
 
 try :
     import Image
@@ -1124,6 +1125,32 @@ class Person(FlickrObject):
             else : raise ValueError("The 'id' or 'nsid' parameter is required")
         FlickrObject.__init__(self,**params)
     
+    def setToken(self,token = None,filename = None,token_key = None,token_secret = None):
+        if token is None :
+            if filename is not None :
+                token = auth.AuthHandler.load(filename)
+            elif token_key is None :
+                raise ValueError("Either a token filename or token informations must be given")
+            elif token_secret is None :
+                raise ValueError("Missing token secret")
+            else :
+                token = auth.AuthHandler(API_KEY,API_SECRET,token_key,token_secret)
+        self.__dict__['token'] = token
+
+    @staticmethod
+    def getFromToken(token = None, filename = None,token_key = None,token_secret = None):
+        if token is None :
+            if filename is not None :
+                token = auth.AuthHandler.load(filename)
+            elif token_key is None :
+                raise ValueError("Either a token filename or token informations must be given")
+            elif token_secret is None :
+                raise ValueError("Missing token secret")
+            else :
+                token = auth.AuthHandler(API_KEY,API_SECRET,token_key,token_secret)
+        return = test.login(token)
+
+
     @staticmethod
     def findByEmail(find_email):
         """
@@ -5114,7 +5141,7 @@ class test(object):
         
     
     @staticmethod
-    def login():
+    def login(token = None):
         """ method: flickr.test.login
 
             A testing method which checks if the caller is logged in then 
@@ -5124,9 +5151,11 @@ class test(object):
 
             This method requires authentication with 'read' permission.
         """
-        r = method_call.call_api(method = "flickr.test.login",auth_handler = AUTH_HANDLER)
-        return Person(**r["user"])
-    
+        if token is None : token = AUTH_HANDLER
+        r = method_call.call_api(method = "flickr.test.login",auth_handler = token)
+        user = Person(**r["user"])
+        user.setToken(token)
+
     @staticmethod
     def null():
         """ method: flickr.test.null
