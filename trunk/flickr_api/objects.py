@@ -1148,7 +1148,7 @@ class Person(FlickrObject):
                 raise ValueError("Missing token secret")
             else :
                 token = auth.AuthHandler(API_KEY,API_SECRET,token_key,token_secret)
-        return = test.login(token)
+        return test.login(token)
 
 
     @staticmethod
