@@ -48,7 +48,7 @@ Let's come back to our example. In the xml page, copy the content of the "oauth_
 
 {{{
 >>> a.set_verifier("the verifier code")
->>> flickr_api.set_authentication_handler(a) # set the AuthHandler for the session
+>>> flickr_api.set_auth_handler(a) # set the AuthHandler for the session
 }}}
 
 That's it! You are ready to play with your account. The authorisation process is supposed to be done only once so you might want to save the Authentication token:
@@ -58,11 +58,11 @@ That's it! You are ready to play with your account. The authorisation process is
 Next time you want to access your account you just need to reload it:
 {{{
 >>> a = flickr_api.AuthHandler.load(filename)
->>> flickr_api.set_authentication_handler(a)
+>>> flickr_api.set_auth_handler(a)
 }}}
 Actually there is a shortcut for that:
 {{{
->>> flickr_api.set_authentication_handler(filename)
+>>> flickr_api.set_auth_handler(filename)
 }}}
 
 = Direct API methods calls =
