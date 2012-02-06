@@ -2484,7 +2484,7 @@ class Photo(FlickrObject):
     
     def getPhotoUrl(self,size_label = 'Large'):
         """
-            returns the URL to the photo page corresponding to the
+            returns the URL to the photo page corresponding to the
             given size.
             
         Arguments :
@@ -2505,7 +2505,7 @@ class Photo(FlickrObject):
             
     def getPhotoFile(self,size_label = 'Large'):
         """
-            returns the URL to the photo file corresponding to the
+            returns the URL to the photo file corresponding to the
             given size.
             
         Arguments :
@@ -2797,7 +2797,7 @@ class Photo(FlickrObject):
                 The page of results to return. If this argument is omitted, 
                 it defaults to 1. 
         """
-        r = method_call.call_api(method = "flickr.photos.recentlUpdated", auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.photos.recentlyUpdated", auth_handler = AUTH_HANDLER,**args)
             
         return _extract_photo_list(r)
     
