@@ -1058,7 +1058,7 @@ class MachineTag(FlickrObject):
 
 
 class Panda(FlickrObject):
-    __display__ = ["text"]
+    __display__ = ["name"]
     
     @staticmethod
     def getList():
@@ -1072,10 +1072,9 @@ class Panda(FlickrObject):
             This method does not require authentication.
         """
         r = method_call.call_api(method = "flickr.panda.getList")
-        return [ Panda(**p) for p in r["pandas"]["panda"] ]
-        
-    @staticmethod
-    def getPhotos(**args):
+        return [ Panda(name=p) for p in r["pandas"]["panda"] ]
+
+    def getPhotos(self,**args):
         """ method: flickr.panda.getPhotos
             Ask the Flickr Pandas for a list of recent public (and "safe") photos.
 
@@ -1084,17 +1083,10 @@ class Panda(FlickrObject):
         Authentication:
 
             This method does not require authentication.
-        
+            
+        You can fetch a list of all the current pandas using the flickr.panda.getList API method.
         Arguments:
-            panda_name (Required)
-                The name of the panda to ask for photos from. There are currently three pandas named:
-
-                    ling ling
-                    hsing hsing
-                    wang wang
-
-
-                You can fetch a list of all the current pandas using the flickr.panda.getList API method.
+                
             extras (Optional)
                 A comma-delimited list of extra information to fetch for each returned record. Currently supported fields are: description, license, date_upload, date_taken, owner_name, icon_server, original_format, last_update, geo, tags, machine_tags, o_dims, views, media, path_alias, url_sq, url_t, url_s, url_m, url_z, url_l, url_o
             per_page (Optional)
@@ -1109,7 +1101,7 @@ class Panda(FlickrObject):
                 args["extras"] = ",".join(extras)
         except KeyError : pass
         
-        r = method_call.call_api(method = "flickr.panda.getPhotos",**args)
+        r = method_call.call_api(method = "flickr.panda.getPhotos",panda_name = self.name,**args)
         return _extract_photo_list(r)
 
 class Person(FlickrObject):
