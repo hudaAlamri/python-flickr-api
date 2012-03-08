@@ -2826,7 +2826,7 @@ class Photo(FlickrObject):
         return Photo(id = photo_id, secret = photo_secret)
 
     @staticmethod
-    def search(self,**args):
+    def search(**args):
         """ method: flickr.photos.search
             Return a list of photos matching some criteria. Only photos visible to 
             the calling user will be returned. To return private or semi-private photos, the caller must be authenticated with 'read' permissions, and have permission to view the photos. Unauthenticated calls will only return public photos.
