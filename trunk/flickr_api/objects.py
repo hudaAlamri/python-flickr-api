@@ -245,7 +245,7 @@ class Collection(FlickrObject):
             This method requires authentication with 'read' permission.
         """
         
-        r = method_call.call_api(method = "flickr.collections.getInfo",collection_id = self.id,auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.collections.getInfo",collection_id = self.id,auth_handler = AUTH_HANDLER)
         
         collection = r["collection"]
         icon_photos = _check_list(collection["iconphotos"]["photo"])
@@ -5180,5 +5180,63 @@ def _check_list(obj):
     else :
         return [obj]
 
+class Walker(object):
+    """
+        Object to walk along paginated results. This allows
+        to loop on all the results corresponding to a query
+        regardless pagination.
+        
+        w = Walker(method,*args,**kwargs)
+        
+        arguments:
+        - method: a method returning a FlickrList object.
+        - *args: positional arguments to call 'method' with
+        - **kwargs: named arguments to call 'method' with
+        
+        ex:
+        >>> w = Walker(Photo.search,tags = "animals")
+        >>> for photo in w :
+        >>>     print photo.title
 
+    """
+    def __init__(self,method,*args,**kwargs):
+        """
+            Constructor
+            
+        arguments:
+        - method: a method returning a FlickrList object.
+        - *args: positional arguments to call 'method' with
+        - **kwargs: named arguments to call 'method' with
 
+        """
+        self.method = method
+        self.args = args
+        self.kwargs = kwargs
+        
+        self._curr_list = self.method(*self.args,**self.kwargs)
+        self._info = self._curr_list.info
+        self._curr_index = 0
+        self._page = 1
+    
+    def __len__(self):
+        return self._info.total
+        
+    def __iter__(self):
+        return self
+    
+    def next(self):
+        if self._curr_index == len(self._curr_list) :
+            if self._page <= self._info.pages :
+                self._page += 1
+                self.kwargs["page"] = self._page
+                
+                self._curr_list = self.method(*self.args,**self.kwargs)
+                self._info = self._curr_list.info
+                self._curr_index = 0
+                
+            else :
+                raise IterationStop()
+
+        curr = self._curr_list[self._curr_index]
+        self._curr_index += 1
+        return curr
