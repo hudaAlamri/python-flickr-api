@@ -5226,7 +5226,7 @@ class Walker(object):
     
     def next(self):
         if self._curr_index == len(self._curr_list) :
-            if self._page <= self._info.pages :
+            if self._page < self._info.pages :
                 self._page += 1
                 self.kwargs["page"] = self._page
                 
@@ -5235,7 +5235,7 @@ class Walker(object):
                 self._curr_index = 0
                 
             else :
-                raise IterationStop()
+                raise StopIteration()
 
         curr = self._curr_list[self._curr_index]
         self._curr_index += 1
