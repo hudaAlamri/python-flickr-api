@@ -21,7 +21,7 @@
     Date   : 05/08/2011
 """
 import method_call
-from  base import FlickrDictObject,FlickrObject,FlickrError,dict_converter
+from  base import FlickrDictObject,FlickrObject,FlickrError,dict_converter,caller,me
 import urllib2
 from UserList import UserList
 import auth
@@ -33,6 +33,8 @@ except ImportError : pass
 
 AUTH_HANDLER = None
 
+PERSON_TOKENS = {}
+
 class FlickrList(UserList):
     def __init__(self,data = [],info = None):
         UserList.__init__(self,data)
@@ -43,7 +45,7 @@ class FlickrList(UserList):
     
     def __repr__(self):
         return '%s;%s'%(repr(self.data),repr(self.info))
-        
+
 class Activity(FlickrObject):
     @staticmethod
     def userPhotos(**args):
@@ -69,7 +71,7 @@ class Activity(FlickrObject):
 
         """
         
-        r = method_call.call_api(method = "flickr.activity.userPhotos",auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.activity.userPhotos",auth_handler = self.getToken(),**args)
         
         items = _check_list(r["items"]["item"])
         activities = []
@@ -114,8 +116,7 @@ class Activity(FlickrObject):
                 The page of results to return. If this argument is omitted, it defaults to 1. 
         
         """
-        
-        r = method_call.call_api(method = "flickr.activity.userComments",auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.activity.userComments",auth_handler = self.getToken(),**args)
         
         items = _check_list(r["items"]["item"])
         activities = []
@@ -159,7 +160,7 @@ class Activity(FlickrObject):
                 be rounded down to the start of the day.
                     
         """
-        r = method_call.call_api(method = "flickr.stats.getCollectionStats",auth_handler = AUTH_HANDLER,date = date)
+        r = method_call.call_api(method = "flickr.stats.getCollectionStats",auth_handler = self.getToken(),date = date)
         return int(r["stats"]["views"])
 
 class Blog(FlickrObject):
@@ -185,7 +186,7 @@ class Blog(FlickrObject):
         try :
             args["service"] = args["service"].id
         except (KeyError,AttributeError): pass
-        r = method_call.call_api(method = "flickr.photos.blogs.getList",auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.photos.blogs.getList",auth_handler = self.getToken(),**args)
         return [ Blog(**b) for b in _check_list(r["blogs"]["blog"])]
         
     @staticmethod
@@ -227,7 +228,7 @@ class Blog(FlickrObject):
         
         try : args["photo_id"] = args.pop("photo").id
         except KeyError : pass
-        r = method_call.call_api(method = "flickr.photos.blogs.getServices",auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.photos.blogs.getServices",auth_handler = self.getToken(),**args)
 
 class BlogService(FlickrObject):
     __display__ = ["id","text"]    
@@ -245,7 +246,7 @@ class Collection(FlickrObject):
             This method requires authentication with 'read' permission.
         """
         
-        r = method_call.call_api(method = "flickr.collections.getInfo",collection_id = self.id,auth_handler = AUTH_HANDLER)
+        r = method_call.call_api(method = "flickr.collections.getInfo",collection_id = self.id,auth_handler = self.getToken())
         
         collection = r["collection"]
         icon_photos = _check_list(collection["iconphotos"]["photo"])
@@ -350,7 +351,7 @@ class Contact :
             sort (Optional)
                 The order in which to sort the returned contacts. Defaults to name. The possible values are: name and time. 
         """
-        r = method_call.call_api(method = "flickr.contacts.getList", find_email = find_email,auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.contacts.getList", auth_handler = self.getToken(),**args)
         info = r["contacts"]
         contacts = [ Person(id = c["nsid"],**c) for c in _check_list(info["contact"])]
         return FlickrList(contacts,Info(**info))
@@ -379,7 +380,7 @@ class Gallery(FlickrObject):
                 A short comment or story to accompany the photo. 
         """
         if "photo" in args : args["photo_id"] = args.pop("photo").id
-        r = method_call.call_api(method = "flickr.galleries.addPhoto", gallery_id = self.id ,auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.galleries.addPhoto", gallery_id = self.id ,auth_handler = self.getToken(),**args)
  
     @staticmethod
     def create(**args):
@@ -403,7 +404,7 @@ class Gallery(FlickrObject):
         
         """
         if "primary_photo" in args : args["primary_photo_id"] = args.pop("primary_photo").id
-        r = method_call.call_api(method = "flickr.galleries.create",auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.galleries.create",auth_handler = self.getToken(),**args)
         return Gallery(**r["gallery"])
 
     def editMedia(self,**args):
@@ -423,7 +424,7 @@ class Gallery(FlickrObject):
             description (Optional)
                 The new description for the gallery.         
         """
-        r = method_call.call_api(method = "flickr.galleries.editMeta",auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.galleries.editMeta",auth_handler = self.getToken(),**args)
     
     def editPhoto(self,**args):
         """ method: flickr.galleries.editPhoto
@@ -444,7 +445,7 @@ class Gallery(FlickrObject):
         
         """
         if "photo" in args : args["photo_id"] = args.pop("photo").id
-        r = method_call.call_api(method = "flickr.galleries.editPhoto",auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.galleries.editPhoto",auth_handler = self.getToken(),**args)
 
     def editPhotos(self,**args):
         """ method: flickr.galleries.editPhotos
@@ -470,7 +471,7 @@ class Gallery(FlickrObject):
             args["photo_ids"] = ",".join(photo_ids)
         if "primary_photo" in args : args["primary_photo_id"] = args.pop("primary_photo").id
         
-        r = method_call.call_api(method = "flickr.galleries.editPhotos",auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.galleries.editPhotos",auth_handler = self.getToken(),**args)
 
     @staticmethod
     def getByUrl(url):
@@ -484,7 +485,7 @@ class Gallery(FlickrObject):
         """
         r = method_call.call_api(method = "flickr.urls.lookupGallery",url = url)
         gallery = r["gallery"]
-        gallery["owner"] = Person(gallery["owner"])
+        gallery["owner"] = Person(id = gallery["owner"])
         return Gallery(**gallery)
         
     def getInfo(self):
@@ -537,8 +538,9 @@ class Gallery(FlickrObject):
             if isinstance(extras,list):
                 args["extras"] = ",".join(extras)
         except KeyError : pass
-        
-        r = method_call.call_api(method = "flickr.galleries.getPhotos",gallery_id = self.id,**args)
+        signed = args.pop("signed",True)
+        token = self.getToken() if signed else None
+        r = method_call.call_api(method = "flickr.galleries.getPhotos",auth_handler = token,gallery_id = self.id,**args)
         return _extract_photo_list(r)
 
 
@@ -576,7 +578,7 @@ class Favorite :
         """
         
         if "photo" in args : args["photo_id"] = args.pop("photo").id
-        r = method_call.call_api(method = "flickr.favorites.remove",auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.favorites.remove",auth_handler = self.getToken(),**args)
     
     def getContext(self,**args):
         """ method: flickr.favorites.getContext
@@ -596,7 +598,7 @@ class Favorite :
         """
         if "photo" in args : args["photo_id"] = args.pop("photo").id
         if "user" in args : args["user_id"] = args.pop("user").id
-        r = method_call.call_api(method = "flickr.favorites.remove",auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.favorites.remove",auth_handler = self.getToken(),**args)
         return FlickrList(Photo(**r["prevphoto"]),Photo(**r["nextphoto"])),Info(count = r["count"])
 
 class Group(FlickrObject):
@@ -623,7 +625,7 @@ class Group(FlickrObject):
                     
         """
         if "cat" in args : args["cat_id"] = args.pop("cat")
-        r = method_call.call_api(method = "flickr.groups.browse",auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.groups.browse",auth_handler = self.getToken(),**args)
         
         cat = r["category"]
         subcats = [ Category(**c) for c in _check_list(cat.pop("subcats"))]
@@ -741,7 +743,7 @@ class Group(FlickrObject):
             if isinstance(membertypes,list):
                 args["membertypes"] = ", ".join([str(i) for i in membertypes])
         except KeyError : pass
-        r = method_call.call_api(method = "flickr.groups.members.getList", group_id = self.id,auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.groups.members.getList", group_id = self.id,auth_handler = self.getToken(),**args)
         info = r["members"]
         return FlickrList([ Person(**p) for p in _check_list(info.pop("member"))],Info(**info))
 
@@ -761,7 +763,7 @@ class Group(FlickrObject):
                 must belong to the calling user.        
         """
         if "photo" in args : args["photo_id"] = args.pop("photo").id
-        r = method_call.call_api(method = "flickr.groups.pools.add",group_id = self.id, auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.groups.pools.add",group_id = self.id, auth_handler = self.getToken(),**args)
 
     def getPoolContext(self,**args):
         """ method: flickr.groups.pools.getContext
@@ -799,7 +801,7 @@ class Group(FlickrObject):
             Number of groups to return per page. If this argument is omitted, 
             it defaults to 400. The maximum allowed value is 400. 
         """
-        r = method_call.call_api(method = "flickr.groups.pools.getGroups", auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.groups.pools.getGroups", auth_handler = self.getToken(),**args)
         info = r["groups"]
         return FlickrList([ Group(id = g["nsid"], **g) for g in info.pop("group") ],Info(**info))
 
@@ -862,7 +864,7 @@ class Group(FlickrObject):
                 must be an administrator of the group.        
         """
         if "photo" in args : args["photo_id"] = args.pop("photo").id
-        r = method_call.call_api(method = "flickr.groups.pools.remove",group_id = self.id, auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.groups.pools.remove",group_id = self.id, auth_handler = self.getToken(),**args)
 
 class Interestingness:
     @staticmethod
@@ -1109,6 +1111,7 @@ class Person(FlickrObject):
         dict_converter(["ispro"],bool),
     ]
     __display__ = ["id","username"]
+    __self_name__ = "user_id"
     
     def __init__(self,**params):
         if not params.has_key("id"):
@@ -1117,6 +1120,9 @@ class Person(FlickrObject):
             else : raise ValueError("The 'id' or 'nsid' parameter is required")
         FlickrObject.__init__(self,**params)
     
+    def getToken(self):
+        return self.__dict__.get("token",AUTH_HANDLER)
+
     def setToken(self,token = None,filename = None,token_key = None,token_secret = None):
         if token is None :
             if filename is not None :
@@ -1215,7 +1221,7 @@ class Person(FlickrObject):
         """
         if "photo" in args : args["photo_id"] = args.pop("photo").id
         r = method_call.call_api(method = "flickr.favorites.getContext", user_id = self.id ,**args)
-        return FlickrList([Photo(**r["prevphoto"]),Photo(**r["nextphoto"])],Info(count = r["count"]))
+        return FlickrList([Photo(token = self.getToken(),**r["prevphoto"]),Photo(token = self.getToken(),**r["nextphoto"])],Info(count = r["count"]))
     
     def getFavorites(self,**args):
         """ method: flickr.favorites.getList
@@ -1244,8 +1250,8 @@ class Person(FlickrObject):
                 args["extras"] = ",".join(extras)
         except KeyError : pass
         
-        r = method_call.call_api(method = "flickr.favorites.getPublicList", user_id = self.id , auth_handler = AUTH_HANDLER ,**args)
-        return _extract_photo_list(r)
+        r = method_call.call_api(method = "flickr.favorites.getPublicList", user_id = self.id , auth_handler = self.getToken() ,**args)
+        return _extract_photo_list(r,token = self.getToken())
 
     def getPhotosets(self):
         """ method: flickr.photosets.getList
@@ -1260,15 +1266,17 @@ class Person(FlickrObject):
         info = r["photosets"]
         photosets = info.pop("photoset")
         if not isinstance(photosets,list): phototsets = [photosets]
-        return FlickrList([ Photoset(**ps) for ps in photosets ],Info(**info))
+        return FlickrList([ Photoset(token = self.getToken(),**ps) for ps in photosets ],Info(**info))
     
+    @me("user_id")
+    @caller("flickr.favorites.getPublicList")
     def getPublicFavorites(self,**args):
         """ method: flickr.favorites.getPublicList
         
             Returns a list of favorite public photos for the given user.
         
         Authentication:
-
+        
             This method does not require authentication.
         
         Arguments:
@@ -1288,26 +1296,30 @@ class Person(FlickrObject):
             page (Optional)
                 The page of results to return. If this argument is omitted, it defaults to 1. 
         """
+        
         try :
             extras = args["extras"]
             if isintance(extras,list):
                 args["extras"] = ",".join(extras)
         except KeyError : pass
-        r = method_call.call_api(method = "flickr.favorites.getPublicList", user_id = self.id ,**args)
 
-        return _extract_photo_list(r)
+        return args,_extract_photo_list
 
+    @me
+    @caller("flickr.people.getInfo")
     def getInfo(self,**args):
         """ method: "flickr.people.getInfo"
         
-        """
-        
-        r = method_call.call_api(method = "flickr.people.getInfo", user_id = self.id ,auth_handler = AUTH_HANDLER)
+        """        
+        def format_result(r):
+            user = r["person"]
+            user["photos"] = FlickrDictObject("person",user["photos"])
+            return user
 
-        user = r["person"]
-        user["photos"] = FlickrDictObject("person",user["photos"])
-        return user
+        return args,format_result
 
+    @me
+    @caller("flickr.galleries.getList")
     def getGalleries(self,**args):
         """ method : flickr.galleries.getList
         
@@ -1326,24 +1338,29 @@ class Person(FlickrObject):
                 The page of results to return. If this argument is omitted, 
                 it defaults to 1.         
         """
-        r = method_call.call_api(method = "flickr.galleries.getList", user_id = self.id,**args)
-        info = r["galleries"]
-        galleries = _check_list(info.pop("gallery"))
-        galleries_ = []
-        
-        for g in galleries_ :
-            g["owner"] = Person(gallery["owner"])
-            pp_id = g.pop("primary_photo_id")
-            pp_secret = g.pop("primary_photo_secret")
-            pp_farm = g.pop("primary_photo_farm")
-            pp_server = g.pop("primary_photo_server")
-            
-            g["primary_photo"] = Gallery(id = pp_id, secret = pp_secret, server = pp_server, farm = pp_farm)
-            
-            galleries_.append(g)
-        
-        return FlickrList(galleries_,Info(**info))
 
+        def format_result(r):
+            info = r["galleries"]
+            galleries = _check_list(info.pop("gallery"))
+            galleries_ = []
+            
+            for g in galleries_ :
+                g["owner"] = Person(gallery["owner"])
+                pp_id = g.pop("primary_photo_id")
+                pp_secret = g.pop("primary_photo_secret")
+                pp_farm = g.pop("primary_photo_farm")
+                pp_server = g.pop("primary_photo_server")
+                
+                g["primary_photo"] = Gallery(id = pp_id, secret = pp_secret, server = pp_server, farm = pp_farm,token = self.getToken())
+                
+                galleries_.append(g)
+
+            return FlickrList(galleries_,Info(**info))
+
+        return args,format_result
+
+    @me
+    @caller("flickr.people.getPhotos")
     def getPhotos(self,**args):
         """
             method = "flickr.people.getPhotos"
@@ -1423,10 +1440,10 @@ class Person(FlickrObject):
                 info is a tuple with information about the request.
              
         """
-        r = method_call.call_api(method = "flickr.people.getPhotos", user_id = self.id ,auth_handler = AUTH_HANDLER,**args)
+        return args,_extract_photo_list
 
-        return _extract_photo_list(r)
-
+    @me
+    @caller("flickr.urls.getUserPhotos")
     def getPhotosUrl(self):
         """ method: flickr.urls.getUserPhotos
  
@@ -1437,9 +1454,12 @@ class Person(FlickrObject):
             This method does not require authentication.
         
         """
-        r = method_call.call_api(method = "flickr.urls.getUserPhotos",user_id = self.id)
-        return r["user"]["url"]
+        def format_result(r):
+            return r["user"]["url"]
+        return args,format_result
     
+    @me
+    @caller("flickr.urls.getUserProfile")
     def getProfileUrl(self):
         """ method: flickr.urls.getUserProfile
             Returns the url to a user's profile.
@@ -1449,10 +1469,10 @@ class Person(FlickrObject):
             This method does not require authentication.
         
         """
-        r = method_call.call_api(method = "flickr.urls.getUserProfile",user_id = self.id)
-        return r["user"]["url"]
-        
-        
+        def format_result(r):
+            return r["user"]["url"]        
+        return args,format_result
+
     def getPublicPhotos(self,**args):
         """    method = "flickr.people.getPublicPhotos"
             
@@ -1527,8 +1547,8 @@ class Person(FlickrObject):
                 photo_list is a list of Photo objects.
                 info is a tuple with information about the request.
         """
-        r = method_call.call_api(method = "flickr.people.getPublicPhotos", user_id = self.id ,auth_handler = AUTH_HANDLER,**args)
-        return _extract_photo_list(r)
+        r = method_call.call_api(method = "flickr.people.getPublicPhotos", user_id = self.id ,auth_handler = self.getToken(),**args)
+        return _extract_photo_list(r,token = self.getToken())
 
     def getPhotosOf(self,owner,**args):
         """ method :flickr.people.getPhotosOf
@@ -1564,8 +1584,8 @@ class Person(FlickrObject):
         except AttributeError :
             owner_id = id
         
-        r = method_call.call_api(method = "flickr.people.getPhotosOf", user_id = self.id ,auth_handler = AUTH_HANDLER,**args)
-        return _extract_photo_list(r)
+        r = method_call.call_api(method = "flickr.people.getPhotosOf", user_id = self.id ,auth_handler = self.getToken(),**args)
+        return _extract_photo_list(r,token = self.Token())
 
     def getPublicContacs(self,**args):
         """ method: flickr.contacts.getPublicList
@@ -1583,7 +1603,7 @@ class Person(FlickrObject):
                 Number of photos to return per page. If this argument is omitted, it defaults to 1000. The maximum allowed value is 1000.
 
         """
-        r = method_call.call_api(method = "flickr.contacts.getPublicList", user_id = self.id ,auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.contacts.getPublicList", user_id = self.id ,auth_handler = self.getToken(),**args)
         info = r["contacts"]
         contacts = [ Person(id = c["nsid"],**c) for c in _check_list(info["contact"])]
         return FlickrList(contacts,Info(**info))
@@ -1601,14 +1621,14 @@ class Person(FlickrObject):
                     administrator approval to join. 
         """
         
-        r = method_call.call_api(method = "flickr.people.getPublicGroups", user_id = self.id ,auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.people.getPublicGroups", user_id = self.id ,auth_handler = self.getToken(),**args)
 
         groups = r["groups"]["group"]
         
         groups_ = []
         for gr in groups :
             gr["id"] = gr["nsid"]
-            groups_.append(Group(**gr))
+            groups_.append(Group(token = self.getToken(),**gr))
         return groups_
 
 
@@ -1619,7 +1639,7 @@ class Person(FlickrObject):
         Authentication:
             This method requires authentication with 'read' permission.
         """
-        r = method_call.call_api(method = "flickr.people.getUploadStatus", user_id = self.id ,auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.people.getUploadStatus", user_id = self.id ,auth_handler = self.getToken(),**args)
         return r["user"]
 
     def getContactsPublicPhotos(self,**args):
@@ -1649,8 +1669,8 @@ class Person(FlickrObject):
                 original_format, last_update. 
         
         """
-        r = method_call.call_api(method = "flickr.photos.getContactsPublicPhotos", user_id = self.id, auth_handler = AUTH_HANDLER,**args)
-        return _extract_photo_list(r)
+        r = method_call.call_api(method = "flickr.photos.getContactsPublicPhotos", user_id = self.id, auth_handler = self.getToken(),**args)
+        return _extract_photo_list(r,token = self.getToken())
 
 
     def getTags(self):
@@ -1705,7 +1725,7 @@ class Photo(FlickrObject):
 
                 Note: This method requires an HTTP POST request.
             """
-            r = method_call.call_api(method = "flickr.photos.comments.deleteComment",comment_id = self.id, auth_handler = AUTH_HANDLER)
+            r = method_call.call_api(method = "flickr.photos.comments.deleteComment",comment_id = self.id, auth_handler = self.getToken())
 
         def edit(self, comment_text):
             """ method: flickr.photos.comments.editComment
@@ -1720,7 +1740,7 @@ class Photo(FlickrObject):
                 comment_text (Required)
                     Update the comment to this text.
             """
-            r = method_call.call_api(method = "flickr.photos.comments.editComment",comment_id = self.id, comment_text = comment_text, auth_handler = AUTH_HANDLER)
+            r = method_call.call_api(method = "flickr.photos.comments.editComment",comment_id = self.id, comment_text = comment_text, auth_handler = self.getToken())
 
         @staticmethod
         def getRecentForContacts(**args):
@@ -1745,7 +1765,7 @@ class Photo(FlickrObject):
                 page (Optional)
                     The page of results to return. If this argument is omitted, it defaults to 1. 
             """
-            r = method_call.call_api(method = "flickr.photos.comments.getRecentForContacts", auth_handler = AUTH_HANDLER,**args)
+            r = method_call.call_api(method = "flickr.photos.comments.getRecentForContacts", auth_handler = self.getToken(),**args)
             return _extract_photo_list(r)
 
     class Exif(FlickrObject):
@@ -1775,7 +1795,7 @@ class Photo(FlickrObject):
                     The description of the note 
             
             """
-            r = method_call.call_api(method = "flickr.photos.notes.edit",node_id = self.id,auth_handler = AUTH_HANDLER,**args)
+            r = method_call.call_api(method = "flickr.photos.notes.edit",node_id = self.id,auth_handler = self.getToken(),**args)
             return r
         
         def delete(self):
@@ -1787,8 +1807,9 @@ class Photo(FlickrObject):
 
                 Note: This method requires an HTTP POST request.
             """
-            r = method_call.call_api(method = "flickr.photos.notes.delete",node_id = self.id,auth_handler = AUTH_HANDLER,**args)
+            r = method_call.call_api(method = "flickr.photos.notes.delete",node_id = self.id,auth_handler = self.getToken(),**args)
             return r
+
     class Person(Person):
         __converters__ = [
             dict_converter(["x","y","h","w"],int)
@@ -1803,7 +1824,7 @@ class Photo(FlickrObject):
                 This method requires authentication with 'write' permission.
                 Note: This method requires an HTTP POST request.
             """
-            r = method_call.call_api(method = "flickr.photos.people.delete", user_id = self.id, photo_id = self.photo.id,auth_handler = AUTH_HANDLER)
+            r = method_call.call_api(method = "flickr.photos.people.delete", user_id = self.id, photo_id = self.photo.id,auth_handler = self.getToken())
             return r
         
         def deleteCoords(self):
@@ -1815,7 +1836,7 @@ class Photo(FlickrObject):
 
                 Note: This method requires an HTTP POST request.
             """
-            r = method_call.call_api(method = "flickr.photos.people.deleteCoords", user_id = self.id, photo_id = self.photo.id,auth_handler = AUTH_HANDLER)
+            r = method_call.call_api(method = "flickr.photos.people.deleteCoords", user_id = self.id, photo_id = self.photo.id,auth_handler = self.getToken())
             return r
 
         def editCoords(self,**args):
@@ -1836,7 +1857,7 @@ class Photo(FlickrObject):
                 person_h (Required)
                     The height (in pixels) of the box around the person. 
             """
-            r = method_call.call_api(method = "flickr.photos.people.deleteCoords", user_id = self.id, photo_id = self.photo.id,auth_handler = AUTH_HANDLER,**args)
+            r = method_call.call_api(method = "flickr.photos.people.deleteCoords", user_id = self.id, photo_id = self.photo.id,auth_handler = self.getToken(),**args)
             return r
 
     def addComment(self,**args):
@@ -1855,7 +1876,7 @@ class Photo(FlickrObject):
                 Text of the comment 
         """
 
-        r = method_call.call_api(method = "flickr.photos.comments.addComment", photo_id = self.id,auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.photos.comments.addComment", photo_id = self.id,auth_handler = self.getToken(),**args)
         args["id"] = r["comment"]["id"]
         args["photo"] = self
         return Photo.Comment(**args)
@@ -1882,7 +1903,7 @@ class Photo(FlickrObject):
             note_text (Required)
                 The description of the note 
         """
-        r = method_call.call_api(method = "flickr.photos.notes.add", photo_id = self.id,auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.photos.notes.add", photo_id = self.id,auth_handler = self.getToken(),**args)
         args["id"] = r["note"]["id"]
         args["photo"] = self
         return Photo.Note(**args)
@@ -1916,7 +1937,7 @@ class Photo(FlickrObject):
         except KeyError :
             user_id = args["user_id"]
 
-        r = method_call.call_api(method = "flickr.photos.people.add", photo_id = self.id, user_id = user_id,auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.photos.people.add", photo_id = self.id, user_id = user_id,auth_handler = self.getToken(),**args)
         return Photo.Person(id = user_id,**args)
 
     def addTags(self,tags):
@@ -1937,7 +1958,7 @@ class Photo(FlickrObject):
          if isintance(tags,list):
              tags = ",".join(tags)
          
-         r = method_call.call_api(method = "flickr.photos.addTags", photo_id = self.id, tags = tags,auth_handler = AUTH_HANDLER)
+         r = method_call.call_api(method = "flickr.photos.addTags", photo_id = self.id, tags = tags,auth_handler = self.getToken())
          return r
 
     @staticmethod
@@ -1983,7 +2004,7 @@ class Photo(FlickrObject):
             else :
                 args["place_id"] = place
         except KeyError : pass
-        r = method_call.call_api(method = "flickr.photos.geo.batchCorrectLocation", photo_id = self.id, auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.photos.geo.batchCorrectLocation", photo_id = self.id, auth_handler = self.getToken(),**args)
 
     def correctLocation(self,**args):
         """ method: flickr.photos.geo.correctLocation
@@ -2009,7 +2030,7 @@ class Photo(FlickrObject):
             else :
                 args["place_id"] = place
         except KeyError : pass
-        r = method_call.call_api(method = "flickr.photos.geo.batchCorrectLocation", photo_id = self.id, auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.photos.geo.batchCorrectLocation", photo_id = self.id, auth_handler = self.getToken(),**args)
 
     @staticmethod
     def checkUploadTickets(self,tickets):
@@ -2043,7 +2064,7 @@ class Photo(FlickrObject):
             This method requires authentication with 'delete' permission.
             Note: This method requires an HTTP POST request.
         """
-        r = method_call.call_api(method = "flickr.photos.delete", photo_id = self.id,auth_handler = AUTH_HANDLER)
+        r = method_call.call_api(method = "flickr.photos.delete", photo_id = self.id,auth_handler = self.getToken())
         return r
 
     def getAllContexts(self):
@@ -2054,7 +2075,7 @@ class Photo(FlickrObject):
             This method does not require authentication.
 
         """
-        r = method_call.call_api(method = "flickr.photos.getAllContexts", photo_id = self.id,auth_handler = AUTH_HANDLER)
+        r = method_call.call_api(method = "flickr.photos.getAllContexts", photo_id = self.id,auth_handler = self.getToken())
         photosets = []
         if r.has_key("set"):
             for s in r["set"]:
@@ -2081,7 +2102,7 @@ class Photo(FlickrObject):
                 Maximum date that a comment was added. The date should be 
                 in the form of a unix timestamp. 
         """
-        r = method_call.call_api(method = "flickr.photos.comments.getList", photo_id = self.id,auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.photos.comments.getList", photo_id = self.id,auth_handler = self.getToken(),**args)
         try :
             comments = r["comments"]["comment"]
         except KeyError :
@@ -2124,7 +2145,7 @@ class Photo(FlickrObject):
                 icon_server, original_format, last_update. For more
                 information see extras under flickr.photos.search. 
         """
-        r = method_call.call_api(method = "flickr.photos.getContactsPhotos", auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.photos.getContactsPhotos", auth_handler = self.getToken(),**args)
         photos = r["photos"]["photo"]
         photos_ = []
         for p in photos :
@@ -2165,7 +2186,7 @@ class Photo(FlickrObject):
         Authentication:
             This method does not require authentication.
         """
-        r = method_call.call_api(method = "flickr.photos.getContext", photo_id = self.id,auth_handler = AUTH_HANDLER)
+        r = method_call.call_api(method = "flickr.photos.getContext", photo_id = self.id,auth_handler = self.getToken())
 
         return Photo(**r["prevphoto"]),Photo("",**r["nextphoto"])
 
@@ -2189,7 +2210,7 @@ class Photo(FlickrObject):
                 smallest first. 
                     
         """
-        r = method_call.call_api(method = "flickr.photos.getCounts", auth_handler = AUTH_HANDLER, **args)
+        r = method_call.call_api(method = "flickr.photos.getCounts", auth_handler = self.getToken(), **args)
         return r["photocounts"]["photocount"]
 
     def getExif(self):
@@ -2204,7 +2225,7 @@ class Photo(FlickrObject):
         if hasattr(self,"secret"):
             r = method_call.call_api(method = "flickr.photos.getExif", photo_id = self.id, secret = self.secret)            
         else :
-            r = method_call.call_api(method = "flickr.photos.getExif", photo_id = self.id, auth_handler = AUTH_HANDLER)
+            r = method_call.call_api(method = "flickr.photos.getExif", photo_id = self.id, auth_handler = self.getToken())
         try :
             return [Photo.Exif(**e) for e in r["photo"]["exif"]]
         except KeyError :
@@ -2245,7 +2266,7 @@ class Photo(FlickrObject):
                 omitted, it defaults to 10. The maximum allowed value is 50.
         """
 
-        r = method_call.call_api(method = "flickr.photos.getFavorites", photo_id = self.id,auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.photos.getFavorites", photo_id = self.id,auth_handler = self.getToken(),**args)
         
         
         photo = r["photo"]
@@ -2308,7 +2329,7 @@ class Photo(FlickrObject):
             This method requires authentication with 'read' permission.
         """
         
-        r = method_call.call_api(method = "flickr.photos.geo.getPerms", photo_id = self.id,auth_handler = AUTH_HANDLER)
+        r = method_call.call_api(method = "flickr.photos.geo.getPerms", photo_id = self.id,auth_handler = self.getToken())
         return GeoPerms(r["perms"])
 
     def getLocation(self):
@@ -2385,7 +2406,7 @@ class Photo(FlickrObject):
                 omitted, it defaults to 1. 
         """
         
-        r = method_call.call_api(method = "flickr.photos.getNotInSet", auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.photos.getNotInSet", auth_handler = self.getToken(),**args)
 
         return _extract_photo_list(r)
 
@@ -2417,7 +2438,7 @@ class Photo(FlickrObject):
                 it defaults to 1. 
                     
         """
-        r = method_call.call_api(method = "flickr.photos.getRecent", auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.photos.getRecent", auth_handler = self.getToken(),**args)
         
         return _extract_photo_list(r)
      
@@ -2432,7 +2453,7 @@ class Photo(FlickrObject):
             This method does not require authentication.
         """
         if "sizes" not in self.__dict__ :
-            r = method_call.call_api(method = "flickr.photos.getSizes", photo_id = self.id, auth_handler = AUTH_HANDLER)
+            r = method_call.call_api(method = "flickr.photos.getSizes", photo_id = self.id, auth_handler = self.getToken())
             self.__dict__["sizes"] = dict( [(s["label"],s) for s in r["sizes"]["size"]])
         return self.sizes
 
@@ -2453,7 +2474,7 @@ class Photo(FlickrObject):
                 users, and timestamps will automatically be rounded down 
                 to the start of the day.
         """
-        r = method_call.call_api(method = "flickr.stats.getPhotoStats",photo_id = self.id, auth_handler = AUTH_HANDLER, date = date)
+        r = method_call.call_api(method = "flickr.stats.getPhotoStats",photo_id = self.id, auth_handler = self.getToken(), date = date)
         return dict([(k,int(v)) for k,v in r["stats"].iteritems()])
     
     def getTags(self):
@@ -2606,7 +2627,7 @@ class Photo(FlickrObject):
         
         
         """
-        r = method_call.call_api(method = "flickr.photos.getUntagged", auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.photos.getUntagged", auth_handler = self.getToken(),**args)
             
         return _extract_photo_list(r)
 
@@ -2668,7 +2689,7 @@ class Photo(FlickrObject):
                 The page of results to return. If this argument is 
                 omitted, it defaults to 1.         
         """
-        r = method_call.call_api(method = "flickr.photos.getWithGeoData", auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.photos.getWithGeoData", auth_handler = self.getToken(),**args)
             
         return _extract_photo_list(r)
 
@@ -2731,7 +2752,7 @@ class Photo(FlickrObject):
                 it defaults to 1.
 
         """
-        r = method_call.call_api(method = "flickr.photos.getWithoutGeoData", auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.photos.getWithoutGeoData", auth_handler = self.getToken(),**args)
             
         return _extract_photo_list(r)
 
@@ -2742,7 +2763,7 @@ class Photo(FlickrObject):
         Authentication:
             This method does not require authentication.
         """
-        r = method_call.call_api(method = "flickr.photos.people.getList",photo_id = self.id, auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.photos.people.getList",photo_id = self.id, auth_handler = self.getToken(),**args)
         
         info = r["people"]
         people = info.pop("person")
@@ -2789,7 +2810,7 @@ class Photo(FlickrObject):
                 The page of results to return. If this argument is omitted, 
                 it defaults to 1. 
         """
-        r = method_call.call_api(method = "flickr.photos.recentlyUpdated", auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.photos.recentlyUpdated", auth_handler = self.getToken(),**args)
             
         return _extract_photo_list(r)
     
@@ -2802,7 +2823,7 @@ class Photo(FlickrObject):
 
             Note: This method requires an HTTP POST request.
         """
-        r = method_call.call_api(method = "flickr.photos.geo.removeLocation",photo_id = self.id, auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.photos.geo.removeLocation",photo_id = self.id, auth_handler = self.getToken(),**args)
 
     def rotate(self,degrees):
         """ method:flickr.photos.transform.rotate
@@ -2820,7 +2841,7 @@ class Photo(FlickrObject):
                 from it's current orientation. Valid values are 90, 180 and 270.
         """
 
-        r = method_call.call_api(method = "flickr.photos.geo.removeLocation",photo_id = self.id, degrees = degrees, auth_handler = AUTH_HANDLER)
+        r = method_call.call_api(method = "flickr.photos.geo.removeLocation",photo_id = self.id, degrees = degrees, auth_handler = self.getToken())
         photo_id  = r["photo_id"]["_content"]
         photo_secret = r["photo_id"]["secret"]
         return Photo(id = photo_id, secret = photo_secret)
@@ -3119,7 +3140,7 @@ class Photo(FlickrObject):
             if isinstance(tags,list):
                 args["tags"] = ",".join(tags)
         except KeyError : pass
-        r = method_call.call_api(method = "flickr.photos.search", auth_handler = AUTH_HANDLER,**args)            
+        r = method_call.call_api(method = "flickr.photos.search", **args)            
         return _extract_photo_list(r)
 
     def setContext(self,context):
@@ -3149,7 +3170,7 @@ class Photo(FlickrObject):
                     * 2, outdoors.
 
         """
-        r = method_call.call_api(method = "flickr.photos.search", photo_id = self.id, context = context, auth_handler = AUTH_HANDLER)
+        r = method_call.call_api(method = "flickr.photos.search", photo_id = self.id, context = context, auth_handler = self.getToken())
     
     def setContentType(self,**args):
         """ method: flickr.photos.setContentType
@@ -3165,7 +3186,7 @@ class Photo(FlickrObject):
                 The content type of the photo. Must be one of: 1 for Photo, 
                 2 for Screenshot, and 3 for Other.        
         """
-        r = method_call.call_api(method = "flickr.photos.setContentType", photo_id = self.id, auth_handler = AUTH_HANDLER,**args)            
+        r = method_call.call_api(method = "flickr.photos.setContentType", photo_id = self.id, auth_handler = self.getToken(),**args)            
         return r
 
     def setDates(self,**args):
@@ -3189,7 +3210,7 @@ class Photo(FlickrObject):
                 dates documentation) 
         
         """
-        r = method_call.call_api(method = "flickr.photos.setDates", photo_id = self.id, auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.photos.setDates", photo_id = self.id, auth_handler = self.getToken(),**args)
     
     def setGeoPerms(self,**args):
         """ method: flickr.photos.geo.setPerms
@@ -3216,7 +3237,7 @@ class Photo(FlickrObject):
                 1 to set viewing permissions for the photo's location data 
                 to family, 0 to set it to private.
         """
-        r = method_call.call_api(method = "flickr.photos.geo.setPerms", photo_id = self.id, auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.photos.geo.setPerms", photo_id = self.id, auth_handler = self.getToken(),**args)
 
     def setLicence(self,license):
         """ method: flickr.photos.licenses.setLicense
@@ -3238,7 +3259,7 @@ class Photo(FlickrObject):
         else :
             license_id = license
 
-        r = method_call.call_api(method = "flickr.photos.licenses.setLicense", photo_id = self.id, license_id = license_id , auth_handler = AUTH_HANDLER)         
+        r = method_call.call_api(method = "flickr.photos.licenses.setLicense", photo_id = self.id, license_id = license_id , auth_handler = self.getToken())         
 
     def setLocation(self,**args):
         """ method: flickr.photos.geo.setLocation
@@ -3281,7 +3302,7 @@ class Photo(FlickrObject):
                 The default context for geotagged photos is 0, or "not defined" 
                     
         """
-        r = method_call.call_api(method = "flickr.photos.geo.setLocation", photo_id = self.id, auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.photos.geo.setLocation", photo_id = self.id, auth_handler = self.getToken(),**args)
         
 
     def setMeta(self,**args):
@@ -3299,7 +3320,7 @@ class Photo(FlickrObject):
             description (Required)
                 The description for the photo. 
         """
-        r = method_call.call_api(method = "flickr.photos.setMeta", photo_id = self.id, auth_handler = AUTH_HANDLER,**args)            
+        r = method_call.call_api(method = "flickr.photos.setMeta", photo_id = self.id, auth_handler = self.getToken(),**args)            
     
     def setPerms(self,**args):
         """ method: flickr.photos.setPerms
@@ -3330,7 +3351,7 @@ class Photo(FlickrObject):
                 2: contacts
                 3: everybody                     
         """
-        r = method_call.call_api(method = "flickr.photos.setPerms", photo_id = self.id, auth_handler = AUTH_HANDLER,**args)            
+        r = method_call.call_api(method = "flickr.photos.setPerms", photo_id = self.id, auth_handler = self.getToken(),**args)            
         return r
         
     def setSafetyLevel(self,**args):
@@ -3350,7 +3371,7 @@ class Photo(FlickrObject):
                 Whether or not to additionally hide the photo from public
                 searches. Must be either 1 for Yes or 0 for No.                     
         """
-        r = method_call.call_api(method = "flickr.photos.setSafetyLevel", photo_id = self.id, auth_handler = AUTH_HANDLER,**args)            
+        r = method_call.call_api(method = "flickr.photos.setSafetyLevel", photo_id = self.id, auth_handler = self.getToken(),**args)            
 
     def setTags(self,tags):
         """ method: flickr.photos.setTags
@@ -3365,7 +3386,7 @@ class Photo(FlickrObject):
             tags (Required)
                 All tags for the photo (as a single space-delimited string).        
         """
-        r = method_call.call_api(method = "flickr.photos.setTags", photo_id = self.id, auth_handler = AUTH_HANDLER,tags = tags)
+        r = method_call.call_api(method = "flickr.photos.setTags", photo_id = self.id, auth_handler = self.getToken(),tags = tags)
 
 
         
@@ -3406,7 +3427,7 @@ class PhotoGeo(object):
                 The page of results to return. If this argument is omitted, 
                 it defaults to 1. 
         """
-        r = method_call.call_api(method = "flickr.photos.licences.getInfo",auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.photos.licences.getInfo",auth_handler = self.getToken(),**args)
         return _extract_photo_list(r)
 
 class PhotoGeoPerms(FlickrObject):
@@ -3433,7 +3454,10 @@ class Photoset(FlickrObject):
 
                 Note: This method requires an HTTP POST request.
             """
-            r = method_call.call_api(method = "flickr.photosets.comments.deleteComment", comment_id = self.id, auth_handler = AUTH_HANDLER)
+            r = method_call.call_api(method = "flickr.photosets.comments.deleteComment", comment_id = self.id, auth_handler = self.getToken())
+
+        def getToken(self):
+            return self.owner.getToken()
 
         def edit(self,**args):
             """ method: flickr.photosets.comments.editComment
@@ -3450,7 +3474,7 @@ class Photoset(FlickrObject):
                     Update the comment to this text. 
             
             """
-            r = method_call.call_api(method = "flickr.photosets.comments.editComment", comment_id = self.id, auth_handler = AUTH_HANDLER,**args)
+            r = method_call.call_api(method = "flickr.photosets.comments.editComment", comment_id = self.id, auth_handler = self.getToken(),**args)
             self._set_properties(**args)
 
     def addPhoto(self,**args):
@@ -3470,7 +3494,7 @@ class Photoset(FlickrObject):
             args["photo_id"] = args.pop("photo").id
         except KeyError : pass
 
-        r = method_call.call_api(method = "flickr.photosets.addPhoto",photoset_id = self.id, auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.photosets.addPhoto",photoset_id = self.id, auth_handler = self.getToken(),**args)
 
     def addComment(self,**args):
         """ method: flickr.photosets.comments.addComment
@@ -3487,7 +3511,7 @@ class Photoset(FlickrObject):
             comment_text (Required)
                 Text of the comment 
         """
-        r = method_call.call_api(method = "flickr.photosets.comments.addComment",photoset_id = self.id, auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.photosets.comments.addComment",photoset_id = self.id, auth_handler = self.getToken(),**args)
         return Photoset.Comment(photoset = self,**r)
 
     @staticmethod
@@ -3516,7 +3540,7 @@ class Photoset(FlickrObject):
             pphoto = Photo(id = pphoto_id)
         args["primary_photo_id"] = pphoto_id
 
-        r = method_call.call_api(method = "flickr.photosets.create", auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.photosets.create", auth_handler = self.getToken(),**args)
         photoset = r["photoset"]
         photoset["primary"] = pphoto
         return Photoset(**photoset)
@@ -3531,7 +3555,7 @@ class Photoset(FlickrObject):
 
             Note: This method requires an HTTP POST request.
         """
-        r = method_call.call_api(method = "flickr.photosets.delete", photoset_id = self.id, auth_handler = AUTH_HANDLER)
+        r = method_call.call_api(method = "flickr.photosets.delete", photoset_id = self.id, auth_handler = self.getToken())
 
     
     def editMeta(self,**args):
@@ -3551,7 +3575,7 @@ class Photoset(FlickrObject):
                     A description of the photoset. May contain limited html. 
             
         """
-        r = method_call.call_api(method = "flickr.photosets.editMeta", photoset_id = self.id, auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.photosets.editMeta", photoset_id = self.id, auth_handler = self.getToken(),**args)
     
     def editPhotos(self,**args):
         """ method:flickr.photosets.editPhotos
@@ -3590,7 +3614,7 @@ class Photoset(FlickrObject):
         if isinstance(photo_ids,list):
             args["photo_ids"] = ", ".join(photo_ids)
             
-        r = method_call.call_api(method = "flickr.photosets.editPhotos", photoset_id = self.id, auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.photosets.editPhotos", photoset_id = self.id, auth_handler = self.getToken(),**args)
 
     def getComments(self):
         """ method: flickr.photosets.comments.getList
@@ -3633,7 +3657,7 @@ class Photoset(FlickrObject):
         except KeyError :
             photo_id = args["photo_id"]
         
-        r = method_call.call_api(method = "flickr.photosets.getContext", photoset_id = self.id, auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.photosets.getContext", photoset_id = self.id, auth_handler = self.getToken(),**args)
         return Photo(**r["prevphoto"]),Photo(**r["nextphoto"])
 
     def getInfo(self):
@@ -3717,7 +3741,7 @@ class Photoset(FlickrObject):
                 users, and timestamps will automatically be rounded down 
                 to the start of the day.
         """
-        r = method_call.call_api(method = "flickr.stats.getPhotosetStats",photoset_id = self.id, auth_handler = AUTH_HANDLER, date = date)
+        r = method_call.call_api(method = "flickr.stats.getPhotosetStats",photoset_id = self.id, auth_handler = self.getToken(), date = date)
         return dict([(k,int(v)) for k,v in r["stats"].iteritems()])
         
     @staticmethod
@@ -3746,7 +3770,7 @@ class Photoset(FlickrObject):
         if isinstance(photoset_ids,list):
             args["photoset_ids"] = ", ".join(photoset_ids)
         
-        r = method_call.call_api(method = "flickr.photosets.orderSets", auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.photosets.orderSets", auth_handler = self.getToken(),**args)
         
     def removePhoto(self,**args):
         """ method: flickr.photosets.removePhoto
@@ -3768,7 +3792,7 @@ class Photoset(FlickrObject):
             args["photo_id"] = args.pop("photo").id
         except KeyError : pass
         
-        r = method_call.call_api(method = "flickr.photosets.removePhoto", photoset_id = self.id, auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.photosets.removePhoto", photoset_id = self.id, auth_handler = self.getToken(),**args)
         
     def removePhotos(self,**args):
         """ method: flickr.photosets.removePhotos
@@ -3793,7 +3817,7 @@ class Photoset(FlickrObject):
         if isinstance(photo_ids,list):
             args["photo_ids"] = u",".join(photo_ids)
         
-        r = method_call.call_api(method = "flickr.photosets.removePhotos", photoset_id = self.id, auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.photosets.removePhotos", photoset_id = self.id, auth_handler = self.getToken(),**args)
     
     def reorderPhotos(self,**args):
         """ method: flickr.photosets.reorderPhotos
@@ -3817,7 +3841,7 @@ class Photoset(FlickrObject):
         if isinstance(photo_ids,list):
             args["photo_ids"] = u",".join(photo_ids)
         
-        r = method_call.call_api(method = "flickr.photosets.reorderPhotos", photoset_id = self.id, auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.photosets.reorderPhotos", photoset_id = self.id, auth_handler = self.getToken(),**args)
        
     def setPrimaryPhoto(self,**args):
         """ method: flickr.photosets.setPrimaryPhoto
@@ -3837,7 +3861,7 @@ class Photoset(FlickrObject):
             args["photo_id"] = args.pop("photo").id
         except KeyError : pass
         
-        r = method_call.call_api(method = "flickr.photosets.setPrimaryPhoto", photoset_id = self.id, auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.photosets.setPrimaryPhoto", photoset_id = self.id, auth_handler = self.getToken(),**args)
 
 
 class Place(FlickrObject):
@@ -4422,7 +4446,7 @@ class Place(FlickrObject):
                 the form of a mysql datetime. 
         
         """
-        r = method_call.call_api(method = "flickr.places.placesForUser",auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.places.placesForUser",auth_handler = self.getToken(),**args)
         info = r["places"]
         return [Place(id = place.pop("place_id"), **place) for place in info.pop("place")]
         
@@ -4509,7 +4533,7 @@ class prefs:
 
             This method requires authentication with 'read' permission.
         """
-        r = method_call.call_api(method = "flickr.prefs.getContentType",auth_handler = AUTH_HANDLER)
+        r = method_call.call_api(method = "flickr.prefs.getContentType",auth_handler = self.getToken())
         return r["person"]["content_type"]
     
     @staticmethod
@@ -4545,7 +4569,7 @@ class prefs:
         
         
         """
-        r = method_call.call_api(method = "flickr.prefs.getGeoPerms",auth_handler = AUTH_HANDLER)
+        r = method_call.call_api(method = "flickr.prefs.getGeoPerms",auth_handler = self.getToken())
         p = r["person"]
         p.pop("nsid")
         return p
@@ -4560,7 +4584,7 @@ class prefs:
             This method requires authentication with 'read' permission.
         
         """
-        r = method_call.call_api(method = "flickr.prefs.getHidden",auth_handler = AUTH_HANDLER)
+        r = method_call.call_api(method = "flickr.prefs.getHidden",auth_handler = self.getToken())
         return bool(r["person"]["hidden"])
          
     @staticmethod
@@ -4579,7 +4603,7 @@ class prefs:
             This method requires authentication with 'read' permission.
         
         """
-        r = method_call.call_api(method = "flickr.prefs.getPrivacy",auth_handler = AUTH_HANDLER)
+        r = method_call.call_api(method = "flickr.prefs.getPrivacy",auth_handler = self.getToken())
         return bool(r["person"]["privacy"])
     
     @staticmethod
@@ -4591,7 +4615,7 @@ class prefs:
 
             This method requires authentication with 'read' permission.
         """
-        r = method_call.call_api(method = "flickr.prefs.getSafetyLevel",auth_handler = AUTH_HANDLER)
+        r = method_call.call_api(method = "flickr.prefs.getSafetyLevel",auth_handler = self.getToken())
         return bool(r["person"]["safety_level"])
 
 class reflection:
@@ -4658,7 +4682,7 @@ class stats:
         
         """
         if "collection" in args : args["collection_id"] = args.pop("collection").id
-        r = method_call.call_api(method = "flickr.stats.getCollectionDomains", auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.stats.getCollectionDomains", auth_handler = self.getToken(),**args)
         info = r["domains"]
         domains = [ stats.Domain(**d) for d in info.pop("domain")]
         return FlickrList(domains,Info(**info))
@@ -4696,7 +4720,7 @@ class stats:
         
         """
         if "collection" in args : args["collection_id"] = args.pop("collection").id
-        r = method_call.call_api(method = "flickr.stats.getCollectionReferrers", auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.stats.getCollectionReferrers", auth_handler = self.getToken(),**args)
         info = r["domain"]
         referrers = [ stats.Referrer(**r) for r in info.pop("referrer")]
         return FlickrList(domains,Info(**info))
@@ -4716,7 +4740,7 @@ class stats:
             This method requires authentication with 'read' permission.
         
         """
-        r = method_call.call_api(method = "flickr.stats.getCSVFiles", auth_handler = AUTH_HANDLER)
+        r = method_call.call_api(method = "flickr.stats.getCSVFiles", auth_handler = self.getToken())
         return r["stats"]["csvfiles"]["csv"]
     
     @staticmethod
@@ -4748,7 +4772,7 @@ class stats:
         
         """
         if "photo" in args : args["photo_id"] = args.pop("photo").id
-        r = method_call.call_api(method = "flickr.stats.getPhotoDomains", auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.stats.getPhotoDomains", auth_handler = self.getToken(),**args)
         info = r["domains"]
         domains = [ stats.Domain(**d) for d in info.pop("domain")]
         return FlickrList(domains,Info(**info))
@@ -4785,7 +4809,7 @@ class stats:
         
         """
         if "photo" in args : args["photo_id"] = args.pop("photo").id
-        r = method_call.call_api(method = "flickr.stats.getPhotoReferrers", auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.stats.getPhotoReferrers", auth_handler = self.getToken(),**args)
         info = r["domain"]
         referrers = [ stats.Referrer(**r) for r in info.pop("referrer")]
         return FlickrList(domains,Info(**info))
@@ -4819,7 +4843,7 @@ class stats:
         
         """
         if "photoset" in args : args["photoset_id"] = args.pop("photoset").id
-        r = method_call.call_api(method = "flickr.stats.getPhotosetDomains", auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.stats.getPhotosetDomains", auth_handler = self.getToken(),**args)
         info = r["domains"]
         domains = [ stats.Domain(**d) for d in info.pop("domain")]
         return FlickrList(domains,Info(**info))
@@ -4856,7 +4880,7 @@ class stats:
         
         """
         if "photoset" in args : args["photoset_id"] = args.pop("photoset").id        
-        r = method_call.call_api(method = "flickr.stats.getPhotosetReferrers", auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.stats.getPhotosetReferrers", auth_handler = self.getToken(),**args)
         info = r["domain"]
         referrers = [ stats.Referrer(**r) for r in info.pop("referrer")]
         return FlickrList(domains,Info(**info))
@@ -4880,7 +4904,7 @@ class stats:
                 of the day.
 
         """
-        r = method_call.call_api(method = "flickr.stats.getPhotostreamDomains", auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.stats.getPhotostreamDomains", auth_handler = self.getToken(),**args)
         info = r["domains"]
         domains = [ stats.Domain(**d) for d in info.pop("domain")]
         return FlickrList(domains,Info(**info))
@@ -4914,7 +4938,7 @@ class stats:
                 it defaults to 1. 
         
         """
-        r = method_call.call_api(method = "flickr.stats.getPhotostreamReferrers", auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.stats.getPhotostreamReferrers", auth_handler = self.getToken(),**args)
         info = r["domain"]
         referrers = [ stats.Referrer(**r) for r in info.pop("referrer")]
         return FlickrList(domains,Info(**info))
@@ -4937,7 +4961,7 @@ class stats:
                 to the start of the day. 
                     
         """
-        r = method_call.call_api(method = "flickr.stats.getPhotostreamStats", auth_handler = AUTH_HANDLER,date = date)
+        r = method_call.call_api(method = "flickr.stats.getPhotostreamStats", auth_handler = self.getToken(),date = date)
         return int(r["stats"]["views"])
 
     @staticmethod
@@ -4951,7 +4975,7 @@ class stats:
             This method requires authentication with 'read' permission.
         
         """
-        r = method_call.call_api(method = "flickr.stats.getPopularPhotos", auth_handler = AUTH_HANDLER)
+        r = method_call.call_api(method = "flickr.stats.getPopularPhotos", auth_handler = self.getToken())
         info = r["photos"]
         photos = []
         for p in info.pop("photo"):
@@ -4978,7 +5002,7 @@ class stats:
                 to the start of the day. If no date is provided, all time 
                 view counts will be returned.
         """
-        r = method_call.call_api(method = "flickr.stats.getTotalViews", auth_handler = AUTH_HANDLER,**args)
+        r = method_call.call_api(method = "flickr.stats.getTotalViews", auth_handler = self.getToken(),**args)
         return r["stats"]
 
         
@@ -4998,7 +5022,7 @@ class Tag(FlickrObject):
             return _extract_photo_list(r)[0]
 
     def remove(self):
-        r = method_call.call_api(method = "flickr.photos.removeTag", tag_id = self.id,auth_handler = AUTH_HANDLER)
+        r = method_call.call_api(method = "flickr.photos.removeTag", tag_id = self.id)
     
     @staticmethod
     def getClusters(**args):
@@ -5057,7 +5081,7 @@ class Tag(FlickrObject):
             is not specified, the currently logged in user (if any) is assumed.  
         """
         if "user" in args: args["user_id"] = args.pop("user").id
-        r = method_call.call_api(method = "flickr.tags.getListUser", auth_handler = AUTH_HANDLER, **args)
+        r = method_call.call_api(method = "flickr.tags.getListUser", **args)
         return [Tag(**t) for t in r["who"]["tags"]["tag"]]
         
     @staticmethod
@@ -5078,7 +5102,7 @@ class Tag(FlickrObject):
         
         """
         if "user" in args: args["user_id"] = args.pop("user").id
-        r = method_call.call_api(method = "flickr.tags.getListUserPopular", auth_handler = AUTH_HANDLER, **args)
+        r = method_call.call_api(method = "flickr.tags.getListUserPopular", **args)
         return [Tag(**t) for t in r["who"]["tags"]["tag"]]
 
     @staticmethod
@@ -5095,7 +5119,7 @@ class Tag(FlickrObject):
                 The tag you want to retrieve all raw versions for. 
         
         """
-        r = method_call.call_api(method = "flickr.tags.getListUserRaw", auth_handler = AUTH_HANDLER, **args)
+        r = method_call.call_api(method = "flickr.tags.getListUserRaw", **args)
         tags = r["who"]["tags"]["tag"]
         return [{'clean': t["clean"],"raws": t["raw"]} for t in tags]
     
@@ -5112,7 +5136,7 @@ class Tag(FlickrObject):
             tag (Required)
                 The tag to fetch related tags for. 
         """
-        r = method_call.call_api(method = "flickr.tags.getRelated", auth_handler = AUTH_HANDLER, tag = tag)
+        r = method_call.call_api(method = "flickr.tags.getRelated", tag = tag)
         return r["tags"]["tag"]
 
 
@@ -5162,15 +5186,16 @@ class test(object):
 class UploadTicket(FlickrObject):
     pass
 
-def _extract_photo_list(r):
+def _extract_photo_list(r,token = None):
     photos = []
     infos = r["photos"]
     pp = infos.pop("photo")
     if not isinstance(pp,list):
         pp = [pp]
     for p in pp :
-        owner = Person(id = p["owner"])
+        owner = Person(id = p["owner"],token = token)
         p["owner"] = owner
+        p["token"] = token
         photos.append( Photo(**p))
     return FlickrList(photos,Info(**infos))
 
@@ -5226,7 +5251,7 @@ class Walker(object):
     
     def next(self):
         if self._curr_index == len(self._curr_list) :
-            if self._page <= self._info.pages :
+            if self._page < self._info.pages :
                 self._page += 1
                 self.kwargs["page"] = self._page
                 
@@ -5235,7 +5260,7 @@ class Walker(object):
                 self._curr_index = 0
                 
             else :
-                raise IterationStop()
+                raise StopIteration()
 
         curr = self._curr_list[self._curr_index]
         self._curr_index += 1

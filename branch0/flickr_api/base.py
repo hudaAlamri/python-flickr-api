@@ -6,6 +6,7 @@
     Date   : 05/08/2011
 
 """
+import method_call
 
 class FlickrError(Exception):
     pass
@@ -29,6 +30,32 @@ class FlickrDictObject(object):
                 v = [ FlickrDictObject(k,vi) for vi in v ]
             self.__dict__[k] = v
 
+def me(attribute_name = None):
+    def decorator(method):
+        def call(self,*args,**kwargs):
+            name = self.__class__.__self_name__ if attribute_name is None else attribute_name 
+            kwargs[name] = self.id
+            return method(self,*args,**kwargs)
+        return call
+    return decorator
+
+def caller(method_name):
+    def decorator(method) :
+        def call(self,*args,**kwargs):
+            not_signed = kwargs.pop("not_signed",False)
+            if not_signed :
+                token = None
+            else :
+                token = kwargs.pop("token",None)
+                if token is None : token = self.getToken()
+
+            kwargs["auth_handler"] = token
+            method_args,format_result = method(self,*args,**kwargs)
+            r = method_call.call_api(method = method_name,**method_args)
+            return format_result(r)
+        return call
+    return decorator
+
 class FlickrObject(object):
     """
         Base Object for Flickr API Objects
@@ -36,6 +63,8 @@ class FlickrObject(object):
     __converters__ = []
     __display__ = []
     
+
+
     def __init__(self,**params):
         params["loaded"] = False
         self._set_properties(**params)
@@ -44,6 +73,12 @@ class FlickrObject(object):
         for c in self.__class__.__converters__ :
             c(params)
         self.__dict__.update(params)
+    
+    def setToken(self,token):
+        self.__dict__["token"] = token
+    
+    def getToken(self):
+        return self.__dict__.get("token",None)
     
     def __getattr__(self,name):
         if name not in self.__dict__ :
