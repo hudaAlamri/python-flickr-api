@@ -106,11 +106,9 @@ def call_api(api_key = API_KEY, api_secret = API_SECRET, auth_handler = None, ne
 
     resp = clean_content(resp)
 
-
-
     return resp
 
-def clean_content(d):
+def clean_content(d,lists = {}):
     """
         Cleans out recursively the keys comming from the JSON
         dictionnary.

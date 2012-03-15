@@ -3,7 +3,7 @@
     Object Oriented implementation of Flickr API.
     
     Important notes:
-    - For consistency, the nameing of methods might differ from the name
+    - For consistency, the naming of methods might differ from the name
       in the official API. Please check the method "docstring" to know
       what is the implemented method.
       
@@ -15,25 +15,124 @@
       with named argument "photo = PhotoObject" or with the id string 
       "photo_id = id_string".
 
-
     Author : Alexis Mignon (c)
     email  : alexis.mignon_at_gmail.com
     Date   : 05/08/2011
 """
 import method_call
-from  base import FlickrDictObject,FlickrObject,FlickrError,dict_converter,caller,me
+from  base import FlickrDictObject,FlickrError,dict_converter
+from decorators import caller
 import urllib2
 from UserList import UserList
-import auth
 
 try :
     import Image
     import cStringIO
 except ImportError : pass
 
-AUTH_HANDLER = None
-
 PERSON_TOKENS = {}
+
+try :
+    from reflection import make_docstring
+    import inspect
+    class FlickrAutoDoc(type):
+        def __new__(meta,classname,bases,classDict):
+            self_name = classDict.get("__self_name__",None)
+            for k,v in classDict.iteritems() :
+                if hasattr(v,'flickr_method'):
+                    ignore_arguments = ["api_key",self_name]
+                    if inspect.isfunction(v) and self_name :
+                        ignore_arguments.append(self_name)
+                        v.__self_name__ = self_name
+                    v.__doc__ = make_docstring(v.flickr_method,ignore_arguments,show_errors = False)
+            return type.__new__(meta,classname,bases,classDict)
+
+except ImportError:
+    FlickrAutoDoc = type
+
+class FlickrObject(object):
+    """
+        Base Object for Flickr API Objects
+    """
+    __converters__ = []
+    __display__ = []
+    __metaclass__ = FlickrAutoDoc
+
+    def __init__(self,**params):
+        params["loaded"] = False
+        self._set_properties(**params)
+
+    def _set_properties(self,**params):
+        for c in self.__class__.__converters__ :
+            c(params)
+        self.__dict__.update(params)
+    
+    def setToken(self,filename = None, token = None, token_key = None, token_secret = None):
+        if token is None :
+            token = auth.token_factory(filename = filenam, token_key = token_key, token_secret = token_secret)
+        self.__dict__["token"] = token
+
+    def getToken(self):
+        return self.__dict__.get("token",None)
+
+    def __getattr__(self,name):
+        if name not in self.__dict__ :
+            if not self.loaded :
+                self.load()
+        try :
+            return self.__dict__[name]
+        except KeyError :
+            raise AttributeError("'%s' object has no attribute '%s'"%(self.__class__.__name__,name))
+    
+    def __setattr__(self,name,values):
+        raise FlickrError("Readonly attribute")
+    
+    def get(self,key,*args,**kwargs):
+        return self.__dict__.get(key,*args,**kwargs)
+    
+    def __getitem__(self,key):
+        return self.__dict__[key]
+    
+    def __setitem__(self,key,value):
+        raise FlickrError("Read-only attribute")
+
+    def __str__(self):
+        vals = []
+        for k in self.__class__.__display__ :
+            val_found = False
+            try :
+                value = self.__dict__[k]
+                val_found = True
+            except KeyError :
+                self.load()
+                try :
+                    value = self.__dict__[k]
+                    val_found = True
+                except KeyError : pass
+            if not val_found : continue
+            if isinstance(value,unicode):
+                value = value.encode("utf8")
+            if isinstance(value,str):
+                value = "'%s'"%value
+            else : value = str(value)
+            if len(value) > 20: value = value[:20]+"..."
+            vals.append("%s = %s"%(k,value))
+        return "%s(%s)"%(self.__class__.__name__,", ".join(vals))
+    
+    def __repr__(self): return str(self)
+
+    def getInfo(self):
+        """
+            Returns object information as a dictionnary.
+            Should be overriden.
+        """
+        return {}
+
+    def load(self):
+        props = self.getInfo()
+        self.__dict__["loaded"] = True
+        self._set_properties(**props)
+
 
 class FlickrList(UserList):
     def __init__(self,data = [],info = None):
@@ -48,364 +147,131 @@ class FlickrList(UserList):
 
 class Activity(FlickrObject):
     @staticmethod
+    @caller("flickr.activity.userPhotos")
     def userPhotos(**args):
-        """ method :flickr.activity.userPhotos
-            Returns a list of recent activity on photos belonging to the calling user.
-            Do not poll this method more than once an hour.
-            
-        Authentication:
-            This method requires authentication with 'read' permission.
-        
-        Arguments:
-            timeframe (Optional)
-                The timeframe in which to return updates for. This can be 
-                specified in days ('2d') or hours ('4h'). The default 
-                behaviour is to return changes since the beginning of the
-                previous user session.
-            per_page (Optional)
-                Number of items to return per page. If this argument is 
-                omitted, it defaults to 10. The maximum allowed value is 50.
-            page (Optional)
-                The page of results to return. If this argument is omitted, 
-                it defaults to 1. 
+        return args,_extract_activity_list
 
-        """
-        
-        r = method_call.call_api(method = "flickr.activity.userPhotos",auth_handler = self.getToken(),**args)
-        
-        items = _check_list(r["items"]["item"])
-        activities = []
-        for item in items :
-            activity = item.pop("activity")
-            item_type = item.pop(["type"])
-            if item_type == "photo" :
-                item = Photo(**item)
-            elif item_type == "photoset" :
-                item = Photoset(**item)
-            events_ = []
-            events = _check_list(activity["event"])
-            for e in events :
-                user = e["user"]
-                username = e.pop("username")
-                e["user"] = Person(id = user, username = username)
-                e_type = e.pop("type")
-                if e_type == "comment" :
-                    if item_type == "photo" :
-                        events_.append(Photo.Comment(photo = item, **e))
-                    elif item_type == "photoset" :
-                        events_.append(Photoset.Comment(photoset = item, **e))
-                elif e_type == 'note' :
-                    events_.append(Note(photo = item,**e))
-            activities.append( Activity(item = item, events = events) )
-        return activities
-    
     @staticmethod
+    @caller("flickr.activity.userComments")
     def userComments(**args):
-        """ method: flickr.activity.userComments
-            Returns a list of recent activity on photos commented on by 
-            the calling user. Do not poll this method more than once an hour.
+        return args,_extract_activity_list
         
-        Authentication:
-
-            This method requires authentication with 'read' permission.
-        
-        Arguments:
-            per_page (Optional)
-                Number of items to return per page. If this argument is omitted, it defaults to 10. The maximum allowed value is 50.
-            page (Optional)
-                The page of results to return. If this argument is omitted, it defaults to 1. 
-        
-        """
-        r = method_call.call_api(method = "flickr.activity.userComments",auth_handler = self.getToken(),**args)
-        
-        items = _check_list(r["items"]["item"])
-        activities = []
-        for item in items :
-            activity = item.pop("activity")
-            item_type = item.pop(["type"])
-            if item_type == "photo" :
-                item = Photo(**item)
-            elif item_type == "photoset" :
-                item = Photoset(**item)
-            events_ = []
-            events = _check_list(activity["event"])
-            for e in events :
-                user = e["user"]
-                username = e.pop("username")
-                e["user"] = Person(id = user, username = username)
-                e_type = e.pop("type")
-                if e_type == "comment" :
-                    if item_type == "photo" :
-                        events_.append(Photo.Comment(photo = item, **e))
-                    elif item_type == "photoset" :
-                        events_.append(Photoset.Comment(photoset = item, **e))
-                elif e_type == 'note' :
-                    events_.append(Note(photo = item,**e))
-            activities.append( Activity(item = item, events = events) )
-        return activities
-    
-    def getStats(self,date):
-        """ method: flickr.stats.getCollectionStats
-            Get the number of views on a collection for a given date.
-            
-        Authentication:
-
-            This method requires authentication with 'read' permission.
-        
-        Arguments:
-            date (Required)
-                Stats will be returned for this date. This should be in either be in 
-                YYYY-MM-DD or unix timestamp format. A day according to Flickr Stats 
-                starts at midnight GMT for all users, and timestamps will automatically 
-                be rounded down to the start of the day.
-                    
-        """
-        r = method_call.call_api(method = "flickr.stats.getCollectionStats",auth_handler = self.getToken(),date = date)
-        return int(r["stats"]["views"])
-
 class Blog(FlickrObject):
     __display__ = ["id","name"]
     __converters__ = [
         dict_converter(["needspassword"],bool),
     ]
-    @staticmethod
-    def getList(**args):
-        """ method: flickr.blogs.getList
-            Get a list of configured blogs for the calling user.
-        
-        Authentication:
+    __self_name__ = "blog_id"
+    
+    @caller("flickr.blogs.postPhoto")
+    def postPhoto(self,**args):
+        return _format_id("photo",args),lambda r : None
 
-            This method requires authentication with 'read' permission.
-        
-        Arguments:
-            service (Optional)
-                Optionally only return blogs for a given service id. You 
-                can get a list of from flickr.blogs.getServices().
-        """
-        
+class BlogService(FlickrObject):
+    __display__ = ["id","text"]
+    __self_name__ = ["service"]
+
+    @caller("flickr.blogs.getList")
+    def getList(self,**args):
         try :
             args["service"] = args["service"].id
         except (KeyError,AttributeError): pass
-        r = method_call.call_api(method = "flickr.photos.blogs.getList",auth_handler = self.getToken(),**args)
-        return [ Blog(**b) for b in _check_list(r["blogs"]["blog"])]
         
-    @staticmethod
-    def getServices():
-        """ method: flickr.blogs.getServices
-        
-            Return a list of Flickr supported blogging services
-        
-        Authentication:
-            This method does not require authentication.
-        """
-        r = method_call.call_api(method = "flickr.photos.blogs.getServices")
-        return [ BlogService(**s) for s in _check_list(r["services"]["service"]) ]
+        def format_result(r,token = None) :
+            return [ Blog(token = token, **b) for b in _check_list(r["blogs"]["blog"])]
 
+        return args,format_result
+
+    @caller("flickr.blogs.postPhoto")
     def postPhoto(self,**args):
-        """ method: flickr.blogs.postPhoto
+        return _format_id(args),lambda r : None
         
-        Authentication:
-
-            This method requires authentication with 'write' permission.
-
-            Note: This method requires an HTTP POST request.
-        
-        Arguments:
-            photo_id (Required)
-                The id of the photo to blog
-            title (Required)
-                The blog post title
-            description (Required)
-                The blog post body
-            blog_password (Optional)
-                The password for the blog (used when the blog does not have 
-                a stored password).
-            service (Optional)
-                A Flickr supported blogging service. Instead of passing a 
-                blog id you can pass a service id and we'll post to the first 
-                blog of that service we find. 
-        """
-        
-        try : args["photo_id"] = args.pop("photo").id
-        except KeyError : pass
-        r = method_call.call_api(method = "flickr.photos.blogs.getServices",auth_handler = self.getToken(),**args)
-
-class BlogService(FlickrObject):
-    __display__ = ["id","text"]    
+    @staticmethod    
+    @caller("flickr.blogs.getServices")
+    def getServices():
+        return {},lambda r : [ BlogService(**s) for s in _check_list(r["services"]["service"]) ]    
 
 class Collection(FlickrObject):
     __display__ = ["id","title"]
+    __self_name__ = ["collection_id"]
+
+    @caller("flickr.collections.getInfo")
     def getInfo(self):
-        """ method: flickr.collections.getInfo
-            
-            Returns information for a single collection. Currently can 
-            only be called by the collection owner, this may change.
-        
-        Authentication:
+        def format_result(r):
+            collection = r["collection"]
+            icon_photos = _check_list(collection["iconphotos"]["photo"])
+            photos = []
+            for p in photos :
+                p["owner"] = Person(p["owner"])
+                photos.append(Photo(**p))
+            collection["iconphotos"] = photos
+            return collection
+        return args,format_result
 
-            This method requires authentication with 'read' permission.
-        """
-        
-        r = method_call.call_api(method = "flickr.collections.getInfo",collection_id = self.id,auth_handler = self.getToken())
-        
-        collection = r["collection"]
-        icon_photos = _check_list(collection["iconphotos"]["photo"])
-        photos = []
-        for p in photos :
-            p["owner"] = Person(p["owner"])
-            photos.append(Photo(**p))
-        collection["iconphotos"] = photos
-        return Collection(**collection)
-    
-    @staticmethod
+    @caller("flickr.stats.getCollectionStats")
+    def getStats(self,date):
+        return {'date':date}, lambda r : int(r["stats"]["views"])
+
+    @caller("flickr.collections.getTree")
     def getTree(**args):
-        """ method: flickr.collections.getTree
-        
-            Returns a tree (or sub tree) of collections belonging to a given user.
-        
-        Authentication:
-
-            This method does not require authentication.
-        
-        Arguments:
-            collection_id (Optional)
-                The ID of the collection to fetch a tree for, or zero to fetch the root collection. Defaults to zero.
-            user_id (Optional)
-                The ID of the account to fetch the collection tree for. Deafults to the calling user. 
-        
-        """
-        
-        try : args["collection_id"] = args.pop("collection").id
-        except KeyError : pass
-        
-        try : args["user_id"] = args.pop("user").id
-        except KeyError : pass
-        
-        r = method_call.call_api(method = "flickr.collections.getTree",**args)
-
-        collections = _check_list(r["collections"])
-        collections_ = []
-        for c in collections :
-            sets = _check_list(c.pop("set"))
-            sets_ = [ Photoset(**s) for s in sets]
-            collections_.append(Collection(sets = sets_,**c))
-        return collections_
+        def format_result(r,token = None):
+            collections = _check_list(r["collections"])
+            collections_ = []
+            for c in collections :
+                sets = _check_list(c.pop("set"))
+                sets_ = [ Photoset(token = token,**s) for s in sets]
+                collections_.append(Collection(token = token,sets = sets_,**c))
+            return collections_
+        return _format_id("user",args),format_result
 
 class CommonInstitution(FlickrObject) :
     __display__ = ["id","name"]
+    
     @staticmethod
+    @caller("flickr.commons.getInstitutions")
     def getInstitutions():
-        """ method: flickr.commons.getInstitutions
-            Retrieves a list of the current Commons institutions.
-        
-        Authentication:
+        def format_result(r):
+            institutions = _check_list(r["institutions"]["institution"])
+            institutions_ = []
+            for i in institutions :
+                urls = _check_list(i['urls']['url'])
+                urls_ = []
+                for u in urls :
+                    u["url"] = u.pop("text")
+                    urls_.append(CommonInstitutionUrl(**u))
+                i["urls"] = urls_
+                institutions_.append(CommonInstitution(id = i["nsid"],**i))
+            return institutions_
+        return {},format_result
 
-            This method does not require authentication.
-        """
-        r = method_call.call_api(method = "flickr.commons.getInstitutions")
-
-        institutions = _check_list(r["institutions"]["institution"])
-        institutions_ = []
-        for i in institutions :
-            urls = _check_list(i['urls']['url'])
-            urls_ = []
-            for u in urls :
-                u["url"] = u.pop("text")
-                urls_.append(CommonInstitutionUrl(**u))
-            i["urls"] = urls_
-            institutions_.append(CommonInstitution(id = i["nsid"],**i))
-        return institutions_
-
-                
 class CommonInstitutionUrl(FlickrObject):
     pass
 
 class Contact :
+    @staticmethod
+    @caller("flickr.contacts.getList")
     def getList(self,**args):
-        """ method: flickr.contacts.getList
-            Get a list of contacts for the calling user.
-        
-        Authentication:
-
-            This method requires authentication with 'read' permission.
-        
-        Arguments:
-            filter (Optional)
-                An optional filter of the results. The following values are valid:
-                friends
-                    Only contacts who are friends (and not family)
-
-                family
-                    Only contacts who are family (and not friends)
-
-                both
-                    Only contacts who are both friends and family
-
-                neither
-                    Only contacts who are neither friends nor family
-
-            page (Optional)
-                The page of results to return. If this argument is omitted, it defaults to 1.
-            per_page (Optional)
-                Number of photos to return per page. If this argument is omitted, it defaults to 1000. The maximum allowed value is 1000.
-            sort (Optional)
-                The order in which to sort the returned contacts. Defaults to name. The possible values are: name and time. 
-        """
-        r = method_call.call_api(method = "flickr.contacts.getList", auth_handler = self.getToken(),**args)
-        info = r["contacts"]
-        contacts = [ Person(id = c["nsid"],**c) for c in _check_list(info["contact"])]
-        return FlickrList(contacts,Info(**info))
+        def format_result(r):
+            info = r["contacts"]
+            contacts = [ Person(id = c["nsid"],**c) for c in _check_list(info["contact"])]
+            return FlickrList(contacts,Info(**info))
+        return args,format_result
 
 class Gallery(FlickrObject):
     __display__ = [ "id","title"]
     __converters__ = [
         dict_converter(["date_create","date_update","count_photos","count_videos"],int),
     ]
-
+    __self_name__ = "gallery_id"
+    
+    @caller("flickr.galleries.addPhoto")
     def addPhoto(self,**args):
-        """ method: flickr.galleries.addPhoto
+        return _format_id("photo",args),lambda r : None
 
-            Add a photo to a gallery.
-        
-        Authentication:
-
-            This method requires authentication with 'write' permission.
-
-            Note: This method requires an HTTP POST request.
-        
-        Arguments:
-            photo_id (Required)
-                The photo ID to add to the gallery
-            comment (Optional)
-                A short comment or story to accompany the photo. 
-        """
-        if "photo" in args : args["photo_id"] = args.pop("photo").id
-        r = method_call.call_api(method = "flickr.galleries.addPhoto", gallery_id = self.id ,auth_handler = self.getToken(),**args)
- 
     @staticmethod
+    @caller("flickr.galleries.create")
     def create(**args):
-        """ method: flickr.galleries.create
-
-            Create a new gallery for the calling user.
-        
-        Authentication:
-
-            This method requires authentication with 'write' permission.
-
-            Note: This method requires an HTTP POST request.
-        
-        Arguments:
-            title (Required)
-                The name of the gallery
-            description (Required)
-                A short description for the gallery
-            primary_photo_id (Optional)
-                The first photo to add to your gallery 
-        
-        """
-        if "primary_photo" in args : args["primary_photo_id"] = args.pop("primary_photo").id
-        r = method_call.call_api(method = "flickr.galleries.create",auth_handler = self.getToken(),**args)
-        return Gallery(**r["gallery"])
+        return _format_id("primary_photo"), lambda r : Gallery(**r["gallery"])
 
     def editMedia(self,**args):
         """ method: flickr.galleries.editMeta
@@ -1119,21 +985,6 @@ class Person(FlickrObject):
                 params["id"] = params["nsid"]
             else : raise ValueError("The 'id' or 'nsid' parameter is required")
         FlickrObject.__init__(self,**params)
-    
-    def getToken(self):
-        return self.__dict__.get("token",AUTH_HANDLER)
-
-    def setToken(self,token = None,filename = None,token_key = None,token_secret = None):
-        if token is None :
-            if filename is not None :
-                token = auth.AuthHandler.load(filename)
-            elif token_key is None :
-                raise ValueError("Either a token filename or token informations must be given")
-            elif token_secret is None :
-                raise ValueError("Missing token secret")
-            else :
-                token = auth.AuthHandler(API_KEY,API_SECRET,token_key,token_secret)
-        self.__dict__['token'] = token
 
     @staticmethod
     def getFromToken(token = None, filename = None,token_key = None,token_secret = None):
@@ -1150,196 +1001,54 @@ class Person(FlickrObject):
 
 
     @staticmethod
+    @caller("flickr.people.findByUsername")
     def findByEmail(find_email):
-        """
-            method : flickr.people.findByEmail
-
-            Return a user's NSID, given their email address
-            
-            Authentication: This method does not require authentication.
-            
-            Arguments :
-                find_email (Required)
-                    The email address of the user to find (may be primary 
-                    or secondary).
-                    
-            Returns :
-                The found user object
-        """        
-        r = method_call.call_api(method = "flickr.people.findByEmail", find_email = find_email)
-        return Person(**r["user"])
-
+        return {'find_email':find_email},lambda r : Person(**r["user"])
+        
     @staticmethod
+    @caller("flickr.people.findByUsername")
     def findByUserName(username):
-        """
-            method : flickr.people.findByUsername
-            
-            Return a user's NSID, given their username.
-            
-            Authentication :
-                This method does not require authentication.
-                
-            Arguments :
-                username (Required)
-                    The username of the user to lookup. 
-
-            Returns :
-                The found user object.
-
-            """
-        r = method_call.call_api(method = "flickr.people.findByUsername", username = username)
-        user = r["user"]
-        return Person(**r["user"])
-
+        return {'username':username},lambda r : Person(**r["user"])
+        
     @staticmethod
-    def getByUrl(url):
-        """ method: flickr.urls.lookupUser
+    @caller("flickr.urls.lookupUser")
+    def findByUrl(url):
+        return {'url':url}, lambda r : Person(**r["user"])
 
-            Returns a user NSID, given the url to a user's photos or profile.
-        
-        Authentication:
-
-            This method does not require authentication.
-        
-        """
-        r = method_call.call_api(method = "flickr.urls.lookupUser", url = url)
-        return Person(**r["user"])
-
+    @caller("flickr.favorites.getContext")
     def getFavoriteContext(self,**args):
-        """ method: flickr.favorites.getContext
-
-            Returns next and previous favorites for a photo in a user's favorites.
-        
-        Authentication:
-
-            This method does not require authentication.
-        
-        Arguments:
-            photo_id (Required)
-                The id of the photo to fetch the context for. 
-        
-        """
-        if "photo" in args : args["photo_id"] = args.pop("photo").id
-        r = method_call.call_api(method = "flickr.favorites.getContext", user_id = self.id ,**args)
-        return FlickrList([Photo(token = self.getToken(),**r["prevphoto"]),Photo(token = self.getToken(),**r["nextphoto"])],Info(count = r["count"]))
+        def format_result(r,token = None):
+            return FlickrList([Photo(token = token,**r["prevphoto"]),Photo(token = token,**r["nextphoto"])],Info(count = r["count"]))
+        return _format_id("photo",args),format_result
     
+    @caller("flickr.favorites.getPublicList")
     def getFavorites(self,**args):
-        """ method: flickr.favorites.getList
+        return _format_extras(args),_extract_photo_list
 
-            Returns a list of the user's favorite photos. Only photos which the calling user has permission to see are returned.
-        
-        Authentication:
-
-            This method requires authentication with 'read' permission.
-        
-        Arguments:
-            min_fave_date (Optional)
-                Minimum date that a photo was favorited on. The date should be in the form of a unix timestamp.
-            max_fave_date (Optional)
-                Maximum date that a photo was favorited on. The date should be in the form of a unix timestamp.
-            extras (Optional)
-                A comma-delimited list of extra information to fetch for each returned record. Currently supported fields are: description, license, date_upload, date_taken, owner_name, icon_server, original_format, last_update, geo, tags, machine_tags, o_dims, views, media, path_alias, url_sq, url_t, url_s, url_m, url_z, url_l, url_o
-            per_page (Optional)
-                Number of photos to return per page. If this argument is omitted, it defaults to 100. The maximum allowed value is 500.
-            page (Optional)
-                The page of results to return. If this argument is omitted, it defaults to 1.        
-        """
-        try :
-            extras = args["extras"]
-            if isintance(extras,list):
-                args["extras"] = ",".join(extras)
-        except KeyError : pass
-        
-        r = method_call.call_api(method = "flickr.favorites.getPublicList", user_id = self.id , auth_handler = self.getToken() ,**args)
-        return _extract_photo_list(r,token = self.getToken())
-
+    @caller("flickr.favorites.getPublicList")
     def getPhotosets(self):
-        """ method: flickr.photosets.getList
-            Returns the photosets belonging to the specified user.
-        
-        Authentication:
+        def format_result(r,token = None):
+            info = r["photosets"]
+            photosets = info.pop("photoset")
+            if not isinstance(photosets,list): phototsets = [photosets]
+            return FlickrList([ Photoset(token = token,**ps) for ps in photosets ],Info(**info))
+        return args,format_result
 
-            This method does not require authentication.
-        """
-
-        r = method_call.call_api(method = "flickr.photosets.getList",user_id = self.id)
-        info = r["photosets"]
-        photosets = info.pop("photoset")
-        if not isinstance(photosets,list): phototsets = [photosets]
-        return FlickrList([ Photoset(token = self.getToken(),**ps) for ps in photosets ],Info(**info))
-    
-    @me("user_id")
     @caller("flickr.favorites.getPublicList")
     def getPublicFavorites(self,**args):
-        """ method: flickr.favorites.getPublicList
-        
-            Returns a list of favorite public photos for the given user.
-        
-        Authentication:
-        
-            This method does not require authentication.
-        
-        Arguments:
-            min_fave_date (Optional)
-                Minimum date that a photo was favorited on. The date should be in the form of a unix timestamp.
-            max_fave_date (Optional)
-                Maximum date that a photo was favorited on. The date should be in the form of a unix timestamp.
-            extras (Optional)
-                A comma-delimited list of extra information to fetch for 
-                each returned record. Currently supported fields are: description,
-                license, date_upload, date_taken, owner_name, icon_server, 
-                original_format, last_update, geo, tags, machine_tags, 
-                o_dims, views, media, path_alias, url_sq, url_t, url_s, 
-                url_m, url_z, url_l, url_o
-            per_page (Optional)
-                Number of photos to return per page. If this argument is omitted, it defaults to 100. The maximum allowed value is 500.
-            page (Optional)
-                The page of results to return. If this argument is omitted, it defaults to 1. 
-        """
-        
-        try :
-            extras = args["extras"]
-            if isintance(extras,list):
-                args["extras"] = ",".join(extras)
-        except KeyError : pass
+        return _format_extras(args),_extract_photo_list
 
-        return args,_extract_photo_list
-
-    @me
     @caller("flickr.people.getInfo")
-    def getInfo(self,**args):
-        """ method: "flickr.people.getInfo"
-        
-        """        
+    def getInfo(self,**args):      
         def format_result(r):
             user = r["person"]
             user["photos"] = FlickrDictObject("person",user["photos"])
             return user
-
         return args,format_result
 
-    @me
     @caller("flickr.galleries.getList")
     def getGalleries(self,**args):
-        """ method : flickr.galleries.getList
-        
-            Return the list of galleries created by a user. Sorted from 
-            newest to oldest.
-        
-        Authentication:
-
-            This method does not require authentication.
-        
-        Arguments:
-            per_page (Optional)
-                Number of galleries to return per page. If this argument is 
-                omitted, it defaults to 100. The maximum allowed value is 500.
-            page (Optional)
-                The page of results to return. If this argument is omitted, 
-                it defaults to 1.         
-        """
-
-        def format_result(r):
+        def format_result(r,token = True):
             info = r["galleries"]
             galleries = _check_list(info.pop("gallery"))
             galleries_ = []
@@ -1350,361 +1059,77 @@ class Person(FlickrObject):
                 pp_secret = g.pop("primary_photo_secret")
                 pp_farm = g.pop("primary_photo_farm")
                 pp_server = g.pop("primary_photo_server")
-                
-                g["primary_photo"] = Gallery(id = pp_id, secret = pp_secret, server = pp_server, farm = pp_farm,token = self.getToken())
-                
+                g["primary_photo"] = Gallery(id = pp_id, secret = pp_secret, server = pp_server, farm = pp_farm,token = token)
                 galleries_.append(g)
-
             return FlickrList(galleries_,Info(**info))
-
         return args,format_result
 
-    @me
     @caller("flickr.people.getPhotos")
     def getPhotos(self,**args):
-        """
-            method = "flickr.people.getPhotos"
-            
-                Return photos from the given user's photostream. Only photos 
-                visible to the calling user will be returned. This method must 
-                be authenticated; to return public photos for a user, use 
-                flickr.people.getPublicPhotos.
-            
-            Authentification : Cette méthode exige une authentification avec 
-            autorisation de lecture.
-            
-            Arguments :
-              safe_search (Facultatif)
-                    Safe search setting:
-                        * 1 for safe.
-                        * 2 for moderate.
-                        * 3 for restricted.
-                    (Please note: Un-authed calls can only see Safe content.)
-
-                min_upload_date (Facultatif)
-                    Minimum upload date. Photos with an upload date greater 
-                    than or equal to this value will be returned. The date 
-                    should be in the form of a unix timestamp.
-                max_upload_date (Facultatif)
-                    Maximum upload date. Photos with an upload date less 
-                    than or equal to this value will be returned. The date 
-                    should be in the form of a unix timestamp.
-                min_taken_date (Facultatif)
-                    Minimum taken date. Photos with an taken date greater 
-                    than or equal to this value will be returned. The date 
-                    should be in the form of a mysql datetime.
-                max_taken_date (Facultatif)
-                    Maximum taken date. Photos with an taken date less than 
-                    or equal to this value will be returned. The date should 
-                    be in the form of a mysql datetime.
-                content_type (Facultatif)
-                    Content Type setting:
-
-                        * 1 for photos only.
-                        * 2 for screenshots only.
-                        * 3 for 'other' only.
-                        * 4 for photos and screenshots.
-                        * 5 for screenshots and 'other'.
-                        * 6 for photos and 'other'.
-                        * 7 for photos, screenshots, and 'other' (all).
-
-                privacy_filter (Facultatif)
-                    Return photos only matching a certain privacy level. 
-                    This only applies when making an authenticated call 
-                    to view photos you own. Valid values are:
-
-                        * 1 public photos
-                        * 2 private photos visible to friends
-                        * 3 private photos visible to family
-                        * 4 private photos visible to friends & family
-                        * 5 completely private photos
-
-                extras (Facultatif)
-                    A comma-delimited list of extra information to fetch 
-                    for each returned record. Currently supported fields 
-                    are: description, license, date_upload, date_taken, 
-                    owner_name, icon_server, original_format, last_update, 
-                    geo, tags, machine_tags, o_dims, views, media, path_alias, 
-                    url_sq, url_t, url_s, url_m, url_z, url_l, url_o
-                per_page (Facultatif)
-                    Number of photos to return per page. If this argument 
-                    is omitted, it defaults to 100. The maximum allowed 
-                    value is 500.
-                page (Facultatif)
-                    The page of results to return. If this argument is 
-                    omitted, it defaults to 1.
-                    
-            returns :
-                (photo_list,info)
-                photo_list is a list of Photo objects.
-                info is a tuple with information about the request.
-             
-        """
         return args,_extract_photo_list
 
-    @me
     @caller("flickr.urls.getUserPhotos")
     def getPhotosUrl(self):
-        """ method: flickr.urls.getUserPhotos
- 
-            Returns the url to a user's photos.
-        
-        Authentication:
-
-            This method does not require authentication.
-        
-        """
-        def format_result(r):
-            return r["user"]["url"]
-        return args,format_result
+        return args,lambda r : r["user"]["url"]
     
-    @me
     @caller("flickr.urls.getUserProfile")
-    def getProfileUrl(self):
-        """ method: flickr.urls.getUserProfile
-            Returns the url to a user's profile.
-        
-        Authentication:
+    def getProfileUrl(self):       
+        return args,lambda r : r["user"]["url"] 
 
-            This method does not require authentication.
-        
-        """
-        def format_result(r):
-            return r["user"]["url"]        
+    @caller("flickr.people.getPublicPhotos")
+    def getPublicPhotos(self,**args):
+        return args,_extract_photo_list
+
+    @caller("flickr.people.getPhotosOf")
+    def getPhotosOf(self,**args):
+        return _format_id("owner",_format_extras(args)),_extract_photo_list(r,token = self.Token())
+
+    @caller("flickr.contacts.getPublicList")
+    def getPublicContacts(self,**args):
+        def format_result(r,token = None) :
+            info = r["contacts"]
+            contacts = [ Person(id = c["nsid"],token = token,**c) for c in _check_list(info["contact"])]
+            return FlickrList(contacts,Info(**info))
         return args,format_result
 
-    def getPublicPhotos(self,**args):
-        """    method = "flickr.people.getPublicPhotos"
-            
-            Get a list of public photos for the given user.
-        
-            Authentification : Cette méthode n'exige pas d'authentification.
-
-            Arguments :
-              safe_search (Facultatif)
-                    Safe search setting:
-
-                        * 1 for safe.
-                        * 2 for moderate.
-                        * 3 for restricted.
-
-                    (Please note: Un-authed calls can only see Safe content.)
-                min_upload_date (Facultatif)
-                    Minimum upload date. Photos with an upload date greater 
-                    than or equal to this value will be returned. The date 
-                    should be in the form of a unix timestamp.
-                max_upload_date (Facultatif)
-                    Maximum upload date. Photos with an upload date less 
-                    than or equal to this value will be returned. The date 
-                    should be in the form of a unix timestamp.
-                min_taken_date (Facultatif)
-                    Minimum taken date. Photos with an taken date greater 
-                    than or equal to this value will be returned. The date 
-                    should be in the form of a mysql datetime.
-                max_taken_date (Facultatif)
-                    Maximum taken date. Photos with an taken date less than 
-                    or equal to this value will be returned. The date should 
-                    be in the form of a mysql datetime.
-                content_type (Facultatif)
-                    Content Type setting:
-
-                        * 1 for photos only.
-                        * 2 for screenshots only.
-                        * 3 for 'other' only.
-                        * 4 for photos and screenshots.
-                        * 5 for screenshots and 'other'.
-                        * 6 for photos and 'other'.
-                        * 7 for photos, screenshots, and 'other' (all).
-
-                privacy_filter (Facultatif)
-                    Return photos only matching a certain privacy level. 
-                    This only applies when making an authenticated call 
-                    to view photos you own. Valid values are:
-
-                        * 1 public photos
-                        * 2 private photos visible to friends
-                        * 3 private photos visible to family
-                        * 4 private photos visible to friends & family
-                        * 5 completely private photos
-
-                extras (Facultatif)
-                    A comma-delimited list of extra information to fetch 
-                    for each returned record. Currently supported fields 
-                    are: description, license, date_upload, date_taken, 
-                    owner_name, icon_server, original_format, last_update, 
-                    geo, tags, machine_tags, o_dims, views, media, path_alias, 
-                    url_sq, url_t, url_s, url_m, url_z, url_l, url_o
-                per_page (Facultatif)
-                    Number of photos to return per page. If this argument 
-                    is omitted, it defaults to 100. The maximum allowed 
-                    value is 500.
-                page (Facultatif)
-                    The page of results to return. If this argument is 
-                    omitted, it defaults to 1.
-                    
-            returns :
-                (photo_list,info)
-                photo_list is a list of Photo objects.
-                info is a tuple with information about the request.
-        """
-        r = method_call.call_api(method = "flickr.people.getPublicPhotos", user_id = self.id ,auth_handler = self.getToken(),**args)
-        return _extract_photo_list(r,token = self.getToken())
-
-    def getPhotosOf(self,owner,**args):
-        """ method :flickr.people.getPhotosOf
-                Returns a list of photos containing a particular Flickr 
-                member.
-                
-            Authentication:
-                This method does not require authentication.
-                
-            Arguments:
-                owner_id (Optional)
-                    An NSID of a Flickr member. This will restrict the list 
-                    of photos to those taken by that member.
-                extras (Optional)
-                    A comma-delimited list of extra information to fetch 
-                    for each returned record. Currently supported fields 
-                    are: description, license, date_upload, date_taken, 
-                    date_person_added, owner_name, icon_server, 
-                    original_format, last_update, geo, tags, machine_tags, 
-                    o_dims, views, media, path_alias, url_sq, url_t, url_s, 
-                    url_m, url_z, url_l, url_o
-                per_page (Optional)
-                    Number of photos to return per page. If this argument 
-                    is omitted, it defaults to 100. The maximum allowed 
-                    value is 500.
-                page (Optional)
-                    The page of results to return. If this argument is 
-                    omitted, it defaults to 1. 
-        """
-        
-        try :
-            owner_id = owner.id
-        except AttributeError :
-            owner_id = id
-        
-        r = method_call.call_api(method = "flickr.people.getPhotosOf", user_id = self.id ,auth_handler = self.getToken(),**args)
-        return _extract_photo_list(r,token = self.Token())
-
-    def getPublicContacs(self,**args):
-        """ method: flickr.contacts.getPublicList
-
-            Get the contact list for a user.
-        
-        Authentication:
-
-            This method does not require authentication.
-        
-        Arguments:
-            page (Optional)
-                The page of results to return. If this argument is omitted, it defaults to 1.
-            per_page (Optional)
-                Number of photos to return per page. If this argument is omitted, it defaults to 1000. The maximum allowed value is 1000.
-
-        """
-        r = method_call.call_api(method = "flickr.contacts.getPublicList", user_id = self.id ,auth_handler = self.getToken(),**args)
-        info = r["contacts"]
-        contacts = [ Person(id = c["nsid"],**c) for c in _check_list(info["contact"])]
-        return FlickrList(contacts,Info(**info))
-        
+    @caller("flickr.people.getPublicGroups")
     def getPublicGroups(self,**args):
-        """ method : flickr.people.getPublicGroups
-                Returns the list of public groups a user is a member of.
-              
-            Authentication:
-                This method does not require authentication.
-            
-            Arguments:
-                invitation_only (Optional)
-                    Include public groups that require an invitation or 
-                    administrator approval to join. 
-        """
-        
-        r = method_call.call_api(method = "flickr.people.getPublicGroups", user_id = self.id ,auth_handler = self.getToken(),**args)
+        def format_result(r,token = None):
+            groups = r["groups"]["group"]
+            groups_ = []
+            for gr in groups :
+                gr["id"] = gr["nsid"]
+                groups_.append(Group(token = token,**gr))
+            return groups_
+        return args,format_result
 
-        groups = r["groups"]["group"]
-        
-        groups_ = []
-        for gr in groups :
-            gr["id"] = gr["nsid"]
-            groups_.append(Group(token = self.getToken(),**gr))
-        return groups_
+    @caller("flickr.people.getUploadStatus")
+    def getUploadStatus(self,**args):
+        return args,lambda r : r["user"]
 
+    @caller("flickr.collections.getTree")
+    def getCollectionTree(**args):
+        def format_result(r,token = None):
+            collections = _check_list(r["collections"])
+            collections_ = []
+            for c in collections :
+                sets = _check_list(c.pop("set"))
+                sets_ = [ Photoset(token = token,**s) for s in sets]
+                collections_.append(Collection(token = token,sets = sets_,**c))
+            return collections_
+        return _format_id("collection",args),format_result
 
-    def getUploadStatus(self):
-        """ method : flickr.people.getUploadStatus
-            Returns information for the calling user related to photo uploads.
-        
-        Authentication:
-            This method requires authentication with 'read' permission.
-        """
-        r = method_call.call_api(method = "flickr.people.getUploadStatus", user_id = self.id ,auth_handler = self.getToken(),**args)
-        return r["user"]
-
+    @caller("flickr.photos.getContactsPublicPhotos")
     def getContactsPublicPhotos(self,**args):
-        """ method: flickr.photos.getContactsPublicPhotos
-            Fetch a list of recent public photos from a users' contacts.
-            
-        Authentication:
-            This method does not require authentication.
-        
-        Arguments:
-            count (Optional)
-                Number of photos to return. Defaults to 10, maximum 50. 
-                This is only used if single_photo is not passed.
-            just_friends (Optional)
-                set as 1 to only show photos from friends and family 
-                (excluding regular contacts).
-            single_photo (Optional)
-                Only fetch one photo (the latest) per contact, instead 
-                of all photos in chronological order.
-            include_self (Optional)
-                Set to 1 to include photos from the user specified by 
-                user_id.
-            extras (Optional)
-                A comma-delimited list of extra information to fetch for 
-                each returned record. Currently supported fields are: license, 
-                date_upload, date_taken, owner_name, icon_server, 
-                original_format, last_update. 
-        
-        """
-        r = method_call.call_api(method = "flickr.photos.getContactsPublicPhotos", user_id = self.id, auth_handler = self.getToken(),**args)
-        return _extract_photo_list(r,token = self.getToken())
+        return _format_extras(args),_extract_photo_list(r,token = self.getToken())
 
-
+    @caller("flickr.tags.getListUser")
     def getTags(self):
-        """ method: flickr.tags.getListUser
-        
-            Get the tag list for a given user (or the currently logged in user).
-        
-        Authentication:
+        return {}, lambda r : [Tag(**t) for t in r["who"]["tags"]["tag"]]
 
-            This method does not require authentication.
-        
-        """
-        r = method_call.call_api(method = "flickr.tags.getListUser", user_id = self.id)
-        return [Tag(**t) for t in r["who"]["tags"]["tag"]]
-        
-    @staticmethod
+    @caller("flickr.tags.getListUserPopular")
     def getPopularTags(**args):
-        """ method: flickr.tags.getListUserPopular
-            
-            Get the popular tags for a given user (or the currently logged in user).
-        
-        Authentication:
-
-            This method does not require authentication.
-        
-        Arguments:
-            user_id (Optional)
-                The NSID of the user to fetch the tag list for. If this argument is not specified, the currently logged in user (if any) is assumed.
-            count (Optional)
-                Number of popular tags to return. defaults to 10 when this argument is not present. 
-        
-        """
-        r = method_call.call_api(method = "flickr.tags.getListUserPopular",user_id = self.id,**args)
-        return [Tag(**t) for t in r["who"]["tags"]["tag"]]
+        return args,lambda r : [Tag(**t) for t in r["who"]["tags"]["tag"]]
 
 class Photo(FlickrObject):
     __converters__ = [
@@ -3869,7 +3294,7 @@ class Place(FlickrObject):
     __converters__ = [
         dict_converter(["latitude","longitude"],float),
     ]
-
+    __self_name__ = 'place_id'
     class ShapeData(FlickrObject):
         class Polyline(FlickrObject):
             pass
@@ -3884,96 +3309,24 @@ class Place(FlickrObject):
         ]
 
     @staticmethod
+    @caller("flickr.places.find")
     def find(**args):
-        """ method: flickr.places.find
-            Return a list of place IDs for a query string.
-
-            The flickr.places.find method is not a geocoder. It will round "up" to the nearest place type to which place IDs apply. For example, if you pass it a street level address it will return the city that contains the address rather than the street, or building, itself.
-        
-        Authentication:
-
-            This method does not require authentication.
-        
-        Arguments:
-            query (Required)
-                The query string to use for place ID lookups        
-        """
-        r = method_call.call_api(method = "flickr.places.find",**args)
-        info = r["places"]
-        return [Place(id = place.pop("place_id"), **place) for place in info.pop("place")]
+        return args,_extract_place_list
 
     @staticmethod
+    @caller("flickr.places.findByLatLon")
     def findByLatLon(**args):
-        """ method: flickr.places.findByLatLon
-            Return a place ID for a latitude, longitude and accuracy triple.
-
-            The flickr.places.findByLatLon method is not meant to be a (reverse) geocoder in the traditional sense. It is designed to allow users to find photos for "places" and will round up to the nearest place type to which corresponding place IDs apply.
-
-            For example, if you pass it a street level coordinate it will return the city that contains the point rather than the street, or building, itself.
-
-            It will also truncate latitudes and longitudes to three decimal points.
+        return args,_extract_place_list
         
-        Authentication:
-
-            This method does not require authentication.
-        
-        Arguments:
-            lat (Required)
-                The latitude whose valid range is -90 to 90. Anything more than 4 decimal places will be truncated.
-            lon (Required)
-                The longitude whose valid range is -180 to 180. Anything more than 4 decimal places will be truncated.
-            accuracy (Optional)
-                Recorded accuracy level of the location information. World level is 1, Country is ~3, Region ~6, City ~11, Street ~16. Current range is 1-16. The default is 16. 
-                    
-        """
-        r = method_call.call_api(method = "flickr.places.findByLatLon",**args)
-        info = r["places"]
-        return FlickrList([Place(id = place.pop("place_id"), **place) for place in info.pop("place")],Info(**info))
-
-    @staticmethod
-    def getChildrenWithPhotoPublic(**args):
-        """ method: flickr.places.getChildrenWithPhotosPublic
-            Return a list of locations with public photos that are parented by a Where on Earth (WOE) or Places ID.
-        
-        Authentication:
-
-            This method does not require authentication.
-        
-        Arguments:
-            api_key (Required)
-                Your API application key. See here for more details.
-            place_id (Optional)
-                A Flickr Places ID. (While optional, you must pass either a valid Places ID or a WOE ID.)
-            woe_id (Optional)
-                A Where On Earth (WOE) ID. (While optional, you must pass either a valid Places ID or a WOE ID.) 
-        """
-        if "place" in args: args["place_id"] = args.pop("place").id
-        r = method_call.call_api(method = "flickr.places.getChildrenWithPhotosPublic",**args)
-        info = r["places"]
-        return [Place(id = place.pop("place_id"), **place) for place in info.pop("place")]
+    @caller("flickr.places.getChildrenWithPhotosPublic")
+    def getChildrenWithPhotoPublic(self,**args):
+        return args,_extract_place_list
        
-    @staticmethod
-    def getPlaceInfo(**args):
-        """ method: flickr.places.getInfo
-            Get informations about a place.
-        
-        Authentication:
-
-            This method does not require authentication.
-        
-        Arguments:
-            place_id (Optional)
-                A Flickr Places ID. (While optional, you must pass either 
-                a valid Places ID or a WOE ID.)
-            woe_id (Optional)
-                A Where On Earth (WOE) ID. (While optional, you must pass 
-                either a valid Places ID or a WOE ID.)
-            return_dict
-                Should we return a dict rather than an object (default)
-        """
-        r = method_call.call_api(method = "flickr.places.getInfo",**args)
-        place = Place.parse_place(r["place"])
-        return Place(**place)
+    @caller("flickr.places.getInfo")
+    def getInfo(self,**args):
+        def format_result(r):
+            return Place.parse_place(r["place"])
+        return args,format_result
 
     @staticmethod
     def parse_shapedata(shape_data_dict):
@@ -4008,447 +3361,49 @@ class Place(FlickrObject):
 
         place["id"] = place.pop("place_id")
         return place
-    
-    def getInfo(self,**args):
-        r = method_call.call_api(method = "flickr.places.getInfo",place_id = self.id,**args)
-        place = Place.parse_place(r["place"])
-        return place
-        
-    @staticmethod
-    def getInfoByUrl(url):
-        """ method: flickr.places.getInfoByUrl 
-        
-            Lookup information about a place, by its flickr.com/places URL.
-        
-        Authentication:
 
-            This method does not require authentication.
-        
-        Arguments:
-            url (Required)
-                A flickr.com/places URL in the form of /country/region/city. 
-                For example: /Canada/Quebec/Montreal 
-        """
-        r = method_call.call_api(method = "flickr.places.getInfoByUrl",url = url) 
-        return Place(**Place.parse_place(r["place"]))
+    @staticmethod
+    @caller("flickr.places.getInfoByUrl")
+    def getByUrl(url):
+        return {'url' : url}, lambda r : Place(**Place.parse_place(r["place"]))
     
     @staticmethod
+    @caller("flickr.places.getPlaceTypes")
     def getPlaceTypes(**args):
-        """ method: flickr.places.getPlaceTypes
-            Fetches a list of available place types for Flickr.
-        
-        Authentication:
-
-            This method does not require authentication.
-        """
-        r = method_call.call_api(method = "flickr.places.getTypes",*args)
-        places_types = r["place_types"]["place_type"]
-        
-        return [ Place.Type(id = pt.pop("place_type_id"), **pt) for pt in place_types ]
+        def format_result(r):
+            places_types = r["place_types"]["place_type"]
+            return [ Place.Type(id = pt.pop("place_type_id"), **pt) for pt in place_types ]
+        return args,format_result
 
     @staticmethod
+    @caller("flickr.places.getShapeHistory")
     def getShapeHistory(**args):
-        """ method: flickr.places.getShapeHistory
-            Return an historical list of all the shape data generated for a Places or Where on Earth (WOE) ID.
-        
-        Authentication:
+        def format_result(r):
+            info = r["shapes"]
+            return [ Place.ShapeData(**Place.parse_shapedata(sd)) for sd in _check_list(info.pop("shapedata"))]
+        return args,format_result
 
-            This method does not require authentication.
+    @caller("flickr.places.getTopPlacesList")
+    def getTopPlaces(self,**args):
+        return args,_extract_place_list
         
-        Arguments:
-            place_id (Optional)
-                A Flickr Places ID. (While optional, you must pass either 
-                a valid Places ID or a WOE ID.)
-            woe_id (Optional)
-                A Where On Earth (WOE) ID. (While optional, you must pass 
-                either a valid Places ID or a WOE ID.)                     
-        """
-        r = method_call.call_api(method = "flickr.places.getShapeHistory",**args)
-        info = r["shapes"]
-        return [ Place.ShapeData(**Place.parse_shapedata(sd)) for sd in _check_list(info.pop("shapedata"))]
-
     @staticmethod
-    def getTopPlaces(**args):
-        """ method: flickr.places.getTopPlacesList
-            Return the top 100 most geotagged places for a day.
-        
-        Authentication:
-
-            This method does not require authentication.
-        
-        Arguments:
-            place_type_id (Required)
-                The numeric ID for a specific place type to cluster photos 
-                by.
-
-                Valid place type IDs are :
-
-                    22: neighbourhood
-                    7: locality
-                    8: region
-                    12: country
-                    29: continent
-
-            date (Optional)
-                A valid date in YYYY-MM-DD format. The default is yesterday.
-            woe_id (Optional)
-                Limit your query to only those top places belonging to a 
-                specific Where on Earth (WOE) identifier.
-            place_id (Optional)
-                Limit your query to only those top places belonging to a 
-                specific Flickr Places identifier. 
-        
-        """
-        if "place" in args: args["place_id"] = args.pop("place").id
-        r = method_call.call_api(method = "flickr.places.getTopPlacesList",**args)
-        info = r["places"]
-        return FlickrList([Place(id = place.pop("place_id"), **place) for place in info.pop("place")],Info(**info))
-
-    @staticmethod
+    @caller("flickr.places.placesForBoundingBox")
     def placesForBoundingBox(**args):
-        """ method: flickr.places.placesForBoundingBox
-            Return all the locations of a matching place type for a bounding box.
-
-            The maximum allowable size of a bounding box (the distance between 
-            the SW and NE corners) is governed by the place type you are 
-            requesting. Allowable sizes are as follows:
-
-                neighbourhood: 3km (1.8mi)
-                locality: 7km (4.3mi)
-                county: 50km (31mi)
-                region: 200km (124mi)
-                country: 500km (310mi)
-                continent: 1500km (932mi)
-
-        Authentication:
-
-            This method does not require authentication.
-        
-        Arguments:
-            bbox (Required)
-                A comma-delimited list of 4 values defining the Bounding Box 
-                of the area that will be searched. The 4 values represent the 
-                bottom-left corner of the box and the top-right corner, 
-                minimum_longitude, minimum_latitude, maximum_longitude, 
-                maximum_latitude.
-            place_type (Optional)
-                The name of place type to using as the starting point to 
-                search for places in a bounding box. Valid placetypes are:
-
-                    neighbourhood
-                    locality
-                    county
-                    region
-                    country
-                    continent
-
-
-                The "place_type" argument has been deprecated in favor of 
-                the "place_type_id" argument. It won't go away but it will 
-                not be added to new methods. A complete list of place type IDs 
-                is available using the flickr.places.getPlaceTypes method. 
-                (While optional, you must pass either a valid place type or 
-                place type ID.)
-                
-            place_type_id (Optional)
-                The numeric ID for a specific place type to cluster photos by.
-
-                Valid place type IDs are :
-
-                    22: neighbourhood
-                    7: locality
-                    8: region
-                    12: country
-                    29: continent
-
-
-                (While optional, you must pass either a valid place type or place type ID.) 
-        
-        """
-        r = method_call.call_api(method = "flickr.places.placesForBoundingBox",**args)
-        info = r["places"]
-        return [Place(id = place.pop("place_id"), **place) for place in info.pop("place")]
-
+        def format_result(r):
+            info = r["places"]
+            return [Place(id = place.pop("place_id"), **place) for place in info.pop("place")]
+        return args,format_result
+    
     @staticmethod
-    def placesForContacts(**args):
-        """ method: flickr.places.placesForContacts
-            Return a list of the top 100 unique places clustered by a given placetype for a user's contacts.
-        
-        Authentication:
-
-            This method requires authentication with 'read' permission.
-        
-        Arguments:
-
-            api_key (Required)
-                Your API application key. See here for more details.
-            place_type (Optional)
-                A specific place type to cluster photos by.
-
-                Valid place types are :
-
-                    neighbourhood (and neighborhood)
-                    locality
-                    region
-                    country
-                    continent
-
-
-                The "place_type" argument has been deprecated in favor of the 
-                "place_type_id" argument. It won't go away but it will not be added 
-                to new methods. A complete list of place type IDs is available using 
-                the flickr.places.getPlaceTypes method. (While optional, you must pass 
-                either a valid place type or place type ID.)
-                
-            place_type_id (Optional)
-                The numeric ID for a specific place type to cluster photos by.
-
-                Valid place type IDs are :
-
-                    22: neighbourhood
-                    7: locality
-                    8: region
-                    12: country
-                    29: continent
-
-
-                (While optional, you must pass either a valid place type or 
-                place type ID.)
-            woe_id (Optional)
-                A Where on Earth identifier to use to filter photo clusters. 
-                For example all the photos clustered by locality in the 
-                United States (WOE ID 23424977).
-
-                (While optional, you must pass either a valid Places ID or 
-                a WOE ID.)
-            place_id (Optional)
-                A Flickr Places identifier to use to filter photo clusters. 
-                For example all the photos clustered by locality in the United 
-                States (Place ID 4KO02SibApitvSBieQ).
-
-                (While optional, you must pass either a valid Places ID or 
-                a WOE ID.)
-            threshold (Optional)
-                The minimum number of photos that a place type must have to 
-                be included. If the number of photos is lowered then the 
-                parent place type for that place will be used.
-
-                For example if your contacts only have 3 photos taken in 
-                the locality of Montreal (WOE ID 3534) but your threshold 
-                is set to 5 then those photos will be "rolled up" and included 
-                instead with a place record for the region of Quebec 
-                (WOE ID 2344924).
-            contacts (Optional)
-                Search your contacts. Either 'all' or 'ff' for just friends 
-                and family. (Default is all)
-            min_upload_date (Optional)
-                Minimum upload date. Photos with an upload date greater than 
-                or equal to this value will be returned. The date should be 
-                in the form of a unix timestamp.
-            max_upload_date (Optional)
-                Maximum upload date. Photos with an upload date less than or 
-                equal to this value will be returned. The date should be in 
-                the form of a unix timestamp.
-            min_taken_date (Optional)
-                Minimum taken date. Photos with an taken date greater than 
-                or equal to this value will be returned. The date should be 
-                in the form of a mysql datetime.
-            max_taken_date (Optional)
-                Maximum taken date. Photos with an taken date less than or 
-                equal to this value will be returned. The date should be in 
-                the form of a mysql datetime. 
-        
-        """
-        r = method_call.call_api(method = "flickr.places.placesForContacts",**args)
-        info = r["places"]
-        return [Place(id = place.pop("place_id"), **place) for place in info.pop("place")]
-        
-    @staticmethod
+    @caller("flickr.places.placesForTags")    
     def placesForTags(**args):
-        """ method: flickr.places.placesForTags
-            Return a list of the top 100 unique places clustered by a given 
-            placetype for set of tags or machine tags.
-        
-        Authentication:
-
-            This method does not require authentication.
-        
-        Arguments:
-            place_type_id (Required)
-                The numeric ID for a specific place type to cluster photos by.
-
-                Valid place type IDs are :
-
-                    22: neighbourhood
-                    7: locality
-                    8: region
-                    12: country
-                    29: continent
-
-            woe_id (Optional)
-                A Where on Earth identifier to use to filter photo clusters. 
-                For example all the photos clustered by locality in the 
-                United States (WOE ID 23424977).
-
-                (While optional, you must pass either a valid Places ID or 
-                a WOE ID.)
-            place_id (Optional)
-                A Flickr Places identifier to use to filter photo clusters. 
-                For example all the photos clustered by locality in the United 
-                States (Place ID 4KO02SibApitvSBieQ).
-
-                (While optional, you must pass either a valid Places ID or 
-                a WOE ID.)
-            threshold (Optional)
-                The minimum number of photos that a place type must have to 
-                be included. If the number of photos is lowered then the parent 
-                place type for that place will be used.
-
-                For example if you only have 3 photos taken in the locality 
-                of Montreal (WOE ID 3534) but your threshold is set to 5 then 
-                those photos will be "rolled up" and included instead with a 
-                place record for the region of Quebec (WOE ID 2344924).
-            tags (Optional)
-                A comma-delimited list of tags. Photos with one or more of 
-                the tags listed will be returned.
-            tag_mode (Optional)
-                Either 'any' for an OR combination of tags, or 'all' for an 
-                AND combination. Defaults to 'any' if not specified.
-            machine_tags (Optional)
-                Aside from passing in a fully formed machine tag, there is a 
-                special syntax for searching on specific properties :
-
-                    Find photos using the 'dc' namespace : "machine_tags" => "dc:"
-                    Find photos with a title in the 'dc' namespace : "machine_tags" => "dc:title="
-                    Find photos titled "mr. camera" in the 'dc' namespace : "machine_tags" => "dc:title=\"mr. camera\"
-                    Find photos whose value is "mr. camera" : "machine_tags" => "*:*=\"mr. camera\""
-                    Find photos that have a title, in any namespace : "machine_tags" => "*:title="
-                    Find photos that have a title, in any namespace, whose value is "mr. camera" : "machine_tags" => "*:title=\"mr. camera\""
-                    Find photos, in the 'dc' namespace whose value is "mr. camera" : "machine_tags" => "dc:*=\"mr. camera\""
-
-                Multiple machine tags may be queried by passing a comma-separated 
-                list. The number of machine tags you can pass in a single query depends 
-                on the tag mode (AND or OR) that you are querying with. "AND" queries 
-                are limited to (16) machine tags. "OR" queries are limited to (8).
-            machine_tag_mode (Optional)
-                Either 'any' for an OR combination of tags, or 'all' for an 
-                AND combination. Defaults to 'any' if not specified.
-            min_upload_date (Optional)
-                Minimum upload date. Photos with an upload date greater than 
-                or equal to this value will be returned. The date should be 
-                in the form of a unix timestamp.
-            max_upload_date (Optional)
-                Maximum upload date. Photos with an upload date less than 
-                or equal to this value will be returned. The date should be 
-                in the form of a unix timestamp.
-            min_taken_date (Optional)
-                Minimum taken date. Photos with an taken date greater than 
-                or equal to this value will be returned. The date should be 
-                in the form of a mysql datetime.
-            max_taken_date (Optional)
-                Maximum taken date. Photos with an taken date less than or 
-                equal to this value will be returned. The date should be in 
-                the form of a mysql datetime. 
-                    
-                    """
-        r = method_call.call_api(method = "flickr.places.placesForTags",**args)
-        info = r["places"]
-        return [Place(id = place.pop("place_id"), **place) for place in info.pop("place")]
+        return args,_extract_place_list
 
     @staticmethod
+    @caller("flickr.places.placesForUser")
     def placesForUser(**args):
-        """ method: flickr.places.placesForUser
-            Return a list of the top 100 unique places clustered by a given 
-            placetype for a user.
-        
-        Authentication:
-
-            This method requires authentication with 'read' permission.
-        
-        Arguments:
-            place_type_id (Optional)
-                The numeric ID for a specific place type to cluster photos by.
-
-                Valid place type IDs are :
-
-                    22: neighbourhood
-                    7: locality
-                    8: region
-                    12: country
-                    29: continent
-
-
-                The "place_type" argument has been deprecated in favor of 
-                the "place_type_id" argument. It won't go away but it will 
-                not be added to new methods. A complete list of place type IDs 
-                is available using the flickr.places.getPlaceTypes method. 
-                (While optional, you must pass either a valid place type or 
-                place type ID.)
-            place_type (Optional)
-                A specific place type to cluster photos by.
-
-                Valid place types are :
-
-                    neighbourhood (and neighborhood)
-                    locality
-                    region
-                    country
-                    continent
-
-
-                (While optional, you must pass either a valid place type or 
-                place type ID.)
-                
-            woe_id (Optional)
-                A Where on Earth identifier to use to filter photo clusters. 
-                For example all the photos clustered by locality in the United 
-                States (WOE ID 23424977).
-
-                (While optional, you must pass either a valid Places ID or a 
-                WOE ID.)
-                
-            place_id (Optional)
-                A Flickr Places identifier to use to filter photo clusters. 
-                For example all the photos clustered by locality in the United 
-                States (Place ID 4KO02SibApitvSBieQ).
-
-                (While optional, you must pass either a valid Places ID or 
-                a WOE ID.)
-                
-            threshold (Optional)
-                The minimum number of photos that a place type must have 
-                to be included. If the number of photos is lowered then the 
-                parent place type for that place will be used.
-
-                For example if you only have 3 photos taken in the locality 
-                of Montreal (WOE ID 3534) but your threshold is set to 5 then 
-                those photos will be "rolled up" and included instead with a 
-                place record for the region of Quebec (WOE ID 2344924).
-                
-            min_upload_date (Optional)
-                Minimum upload date. Photos with an upload date greater than 
-                or equal to this value will be returned. The date should be 
-                in the form of a unix timestamp.
-                
-            max_upload_date (Optional)
-                Maximum upload date. Photos with an upload date less than or 
-                equal to this value will be returned. The date should be in 
-                the form of a unix timestamp.
-                
-            min_taken_date (Optional)
-                Minimum taken date. Photos with an taken date greater than or 
-                equal to this value will be returned. The date should be in 
-                the form of a mysql datetime.
-                
-            max_taken_date (Optional)
-                Maximum taken date. Photos with an taken date less than or 
-                equal to this value will be returned. The date should be in 
-                the form of a mysql datetime. 
-        
-        """
-        r = method_call.call_api(method = "flickr.places.placesForUser",auth_handler = self.getToken(),**args)
-        info = r["places"]
-        return [Place(id = place.pop("place_id"), **place) for place in info.pop("place")]
+        return args,_extract_place_list
         
     @staticmethod
     def tagsForPlace(**args):
@@ -4618,7 +3573,7 @@ class prefs:
         r = method_call.call_api(method = "flickr.prefs.getSafetyLevel",auth_handler = self.getToken())
         return bool(r["person"]["safety_level"])
 
-class reflection:
+class Reflection:
     @staticmethod
     def getMethodInfo(method_name):
         """ method: flickr.reflection.getMethodInfo
@@ -5185,6 +4140,50 @@ class test(object):
         
 class UploadTicket(FlickrObject):
     pass
+
+def _extract_activity_list(r):
+    items = _check_list(r["items"]["item"])
+    activities = []
+    for item in items :
+        activity = item.pop("activity")
+        item_type = item.pop(["type"])
+        if item_type == "photo" :
+            item = Photo(**item)
+        elif item_type == "photoset" :
+            item = Photoset(**item)
+        events_ = []
+        events = _check_list(activity["event"])
+        for e in events :
+            user = e["user"]
+            username = e.pop("username")
+            e["user"] = Person(id = user, username = username)
+            e_type = e.pop("type")
+            if e_type == "comment" :
+                if item_type == "photo" :
+                    events_.append(Photo.Comment(photo = item, **e))
+                elif item_type == "photoset" :
+                    events_.append(Photoset.Comment(photoset = item, **e))
+            elif e_type == 'note' :
+                events_.append(Note(photo = item,**e))
+        activities.append( Activity(item = item, events = events) )
+    return activities
+
+
+def _format_id(name,args):
+    try: args[name+"_id"] = args.pop(name).id
+    except KeyError : pass
+
+def _format_extras(args):
+    try :
+        extras = args["extras"]
+        if isinstance(extras,list):
+            args["extras"] = ",".join(extras)
+    except KeyError : pass
+    return args
+
+def _extract_place_list(r):
+    info = r["places"]
+    return FlickrList([Place(id = place.pop("place_id"), **place) for place in info.pop("place")],Info(**info))
 
 def _extract_photo_list(r,token = None):
     photos = []

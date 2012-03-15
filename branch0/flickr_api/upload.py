@@ -27,8 +27,6 @@ from xml.etree import ElementTree as ET
 UPLOAD_URL = "http://api.flickr.com/services/upload/"
 REPLACE_URL = "http://api.flickr.com/services/replace/"
 
-AUTH_HANDLER = None
-
 def format_dict(d):
     d_ = {}
     for k,v in d.iteritems() :
@@ -93,7 +91,7 @@ def upload(**args):
     
     photo_file = args.pop("photo_file")
 
-    r = post(UPLOAD_URL,AUTH_HANDLER,args,photo_file)
+    r = post(UPLOAD_URL,auth.AUTH_HANDLER,args,photo_file)
 
     t = r[0]
     if t.tag == 'photoid' :
