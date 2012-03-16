@@ -20,7 +20,7 @@
     Date   : 05/08/2011
 """
 import method_call
-from  base import FlickrDictObject,FlickrError,dict_converter
+from  flickrerrors import FlickrError
 from decorators import caller
 import urllib2
 from UserList import UserList
@@ -30,25 +30,18 @@ try :
     import cStringIO
 except ImportError : pass
 
-PERSON_TOKENS = {}
-
 try :
-    from reflection import make_docstring
-    import inspect
-    class FlickrAutoDoc(type):
-        def __new__(meta,classname,bases,classDict):
-            self_name = classDict.get("__self_name__",None)
-            for k,v in classDict.iteritems() :
-                if hasattr(v,'flickr_method'):
-                    ignore_arguments = ["api_key",self_name]
-                    if inspect.isfunction(v) and self_name :
-                        ignore_arguments.append(self_name)
-                        v.__self_name__ = self_name
-                    v.__doc__ = make_docstring(v.flickr_method,ignore_arguments,show_errors = False)
-            return type.__new__(meta,classname,bases,classDict)
-
+    from reflection import FlickrAutoDoc
 except ImportError:
     FlickrAutoDoc = type
+
+def dict_converter(keys,func):
+    def convert(dict_) :
+        for k in keys :
+            try :
+                dict_[k] = func(dict_[k])
+            except KeyError : pass
+    return convert
 
 class FlickrObject(object):
     """
@@ -266,94 +259,38 @@ class Gallery(FlickrObject):
     
     @caller("flickr.galleries.addPhoto")
     def addPhoto(self,**args):
-        return _format_id("photo",args),lambda r : None
+        return _format_id("photo",args),_none
 
     @staticmethod
     @caller("flickr.galleries.create")
     def create(**args):
         return _format_id("primary_photo"), lambda r : Gallery(**r["gallery"])
 
+    @caller("flickr.galleries.editMeta")
     def editMedia(self,**args):
-        """ method: flickr.galleries.editMeta
-            
-            Modify the meta-data for a gallery.
-        
-        Authentication:
-
-            This method requires authentication with 'write' permission.
-
-            Note: This method requires an HTTP POST request.
-        
-        Arguments:
-            title (Required)
-                The new title for the gallery.
-            description (Optional)
-                The new description for the gallery.         
-        """
-        r = method_call.call_api(method = "flickr.galleries.editMeta",auth_handler = self.getToken(),**args)
+        return args,_none
     
+    @caller("flickr.galleries.editPhoto")
     def editPhoto(self,**args):
-        """ method: flickr.galleries.editPhoto
-            
-            Edit the comment for a gallery photo.
-        
-        Authentication:
+        return _format_id("photo",args),_none
 
-            This method requires authentication with 'write' permission.
-
-            Note: This method requires an HTTP POST request.
-        
-        Arguments:
-            photo_id (Required)
-                The photo ID to add to the gallery.
-            comment (Required)
-                The updated comment the photo. 
-        
-        """
-        if "photo" in args : args["photo_id"] = args.pop("photo").id
-        r = method_call.call_api(method = "flickr.galleries.editPhoto",auth_handler = self.getToken(),**args)
-
+    @caller("flickr.galleries.editPhotos")
     def editPhotos(self,**args):
-        """ method: flickr.galleries.editPhotos
-        
-            Modify the photos in a gallery. Use this method to add, remove and re-order photos.
-        
-        Authentication:
-
-            This method requires authentication with 'write' permission.
-
-            Note: This method requires an HTTP POST request.
-        
-        Arguments:
-            primary_photo_id (Required)
-                The id of the photo to use as the 'primary' photo for the gallery. This id must also be passed along in photo_ids list argument.
-            photo_ids (Required)
-                A comma-delimited list of photo ids to include in the gallery. They will appear in the set in the order sent. This list must contain the primary photo id. This list of photos replaces the existing list. 
-        
-        """
         if "photos" in args : args["photo_ids"] = [ p.id for p in args.pop("photos") ]
         photo_ids = args["photo_ids"]
         if isinstance(photo_ids,list):
             args["photo_ids"] = ",".join(photo_ids)
-        if "primary_photo" in args : args["primary_photo_id"] = args.pop("primary_photo").id
-        
-        r = method_call.call_api(method = "flickr.galleries.editPhotos",auth_handler = self.getToken(),**args)
+        return _format_id("primary_photo",args),_none
 
     @staticmethod
+    @caller("flickr.urls.lookupGallery")
     def getByUrl(url):
-        """ method: flickr.urls.lookupGallery
-            Returns gallery info, by url.
-        
-        Authentication:
+        def format_result(r):
+            gallery = r["gallery"]
+            gallery["owner"] = Person(id = gallery["owner"])
+            return Gallery(**gallery)
+        return {'url':url},format_result
 
-            This method does not require authentication.
-            
-        """
-        r = method_call.call_api(method = "flickr.urls.lookupGallery",url = url)
-        gallery = r["gallery"]
-        gallery["owner"] = Person(id = gallery["owner"])
-        return Gallery(**gallery)
-        
     def getInfo(self):
         """ method: flickr.galleries.getInfo
         
@@ -1042,7 +979,7 @@ class Person(FlickrObject):
     def getInfo(self,**args):      
         def format_result(r):
             user = r["person"]
-            user["photos"] = FlickrDictObject("person",user["photos"])
+            user["photos_info"] = user.pop("photos")
             return user
         return args,format_result
 
@@ -4180,6 +4117,14 @@ def _format_extras(args):
             args["extras"] = ",".join(extras)
     except KeyError : pass
     return args
+
+def _new(cls):
+    def _newobject(**args):
+        return cls(**args)
+    return _newobject
+
+def _none(r):
+    return None
 
 def _extract_place_list(r):
     info = r["places"]

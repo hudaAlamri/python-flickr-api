@@ -67,6 +67,7 @@ class FlickrMethodProxy(object):
     @staticmethod
     def set_auth_handler(token):
         auth.set_auth_handler(token)
-
-flickr = _get_proxy("flickr")
+        
+if __methods__ :
+    flickr = _get_proxy("flickr")
 

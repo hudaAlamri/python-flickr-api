@@ -13,7 +13,7 @@ import urllib
 import hashlib
 import json
 
-from base import FlickrError,FlickrAPIError
+from flickrerrors import FlickrError,FlickrAPIError
 from cache import SimpleCache
 
 API_KEY = ""

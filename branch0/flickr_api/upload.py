@@ -17,7 +17,7 @@
 
 import method_call
 from method_call import API_KEY
-from base import FlickrError, FlickrAPIError
+from flickrerrors import FlickrError, FlickrAPIError
 from objects import Photo,UploadTicket
 import auth
 import multipart
