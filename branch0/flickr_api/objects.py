@@ -1277,7 +1277,7 @@ class Photo(FlickrObject):
             self.__dict__["sizes"] = self._getSizes(self,**args)
         return self.sizes
 
-    @caller("flickr.stats.getPhotosStats")
+    @caller("flickr.stats.getPhotoStats")
     def getStats(self,date,**args):
         """ method: flickr.stats.getPhotosStats
         
@@ -1534,7 +1534,7 @@ class Photoset(FlickrObject):
             return args,_none
 
     @caller("flickr.photosets.addPhoto")
-    def addPhoto(self,**args)
+    def addPhoto(self,**args):
         return _format_id("photo",args),_none
 
     @caller("flickr.photosets.comments.addComment")
@@ -1846,7 +1846,7 @@ class stats:
     @staticmethod
     @caller("flickr.stats.getCollectionDomains")
     def getCollectionDomains(**args):
-        def format_result(r)
+        def format_result(r):
             info = r["domains"]
             domains = [ stats.Domain(**d) for d in info.pop("domain")]
             return FlickrList(domains,Info(**info))
