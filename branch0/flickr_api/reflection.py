@@ -95,14 +95,15 @@ class FlickrAutoDoc(type):
     """
     def __new__(meta,classname,bases,classDict):
         self_name = classDict.get("__self_name__",None)
-        isstatic = False
+        
         for k,v in classDict.iteritems() :
+            isstatic = False
             if isinstance(v,staticmethod):
                 v = v.__get__(0) # __get__ ignores its arguments and returns the function it wraps
                 isstatic = True
             if hasattr(v,'flickr_method'):
-                ignore_arguments = ["api_key",self_name]
-                if not isstatic and self_name :
+                ignore_arguments = ["api_key"]
+                if (not isstatic) and self_name :
                     ignore_arguments.append(self_name)
                     v.__self_name__ = self_name # this is used by the decorator caller
                                                 # to know the arument name to use to refer
@@ -160,13 +161,26 @@ def caller(flickr_method):
         by 'flickr_method'.
         The wrapped method should return the argument dictionnary
         and a function that format the result of method_call.call_api.
+        
+        Some method can propagate authentication tokens. For instance a 
+        Person object can propagate its token to photos retrieved from
+        it. In this case, it should return its token also and the
+        result formating function should take an additional argument
+        token.
     """
     def decorator(method) :
         @wraps(method)
         def call(*args,**kwargs):
+            token = None
+            res  = method(*args,**kwargs)
+            try :
+                method_args,format_result = res
+            except ValueError :
+                method_args,format_result,token = res
+
             if hasattr(call,'__self_name__'):
                 self = args[0]
-                kwargs[call.__self_name__] = self.id
+                method_args[call.__self_name__] = self.id
             not_signed = kwargs.pop("not_signed",False)
             if not_signed :
                 token = None
@@ -178,10 +192,12 @@ def caller(flickr_method):
                         token = self.getToken()
                         if not token : token = auth.AUTH_HANDLER
                     except (AttributeError,IndexError): pass
-            method_args,format_result = method(*args,**kwargs)
             if token : method_args["auth_handler"] = token
             r = method_call.call_api(method = flickr_method,**method_args)
-            return format_result(r)
+            try :
+                return format_result(r,token)
+            except TypeError :
+                return format_result(r)
         call.flickr_method = flickr_method
         return call
     return decorator
