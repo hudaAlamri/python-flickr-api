@@ -335,7 +335,6 @@ class Group(FlickrObject):
 
     @caller("flickr.groups.getInfo")
     def getInfo(self,**args):
-        group = r["group"]
         return args,lambda r : r["group"]
 
     @caller("flickr.urls.getGroup")
@@ -356,7 +355,7 @@ class Group(FlickrObject):
     def search(**args):
         def format_result(r,token):
             info = r["groups"]
-            groups = [Group(**g) for g in info.pop("group")]
+            groups = [Group(id = g["nsid"],**g) for g in info.pop("group")]
             return FlickrList(groups,Info(**info))
         return args,format_result
 
@@ -780,7 +779,7 @@ class Photo(FlickrObject):
         return args,format_result
 
     @caller("flickr.photos.getInfo")
-    def getInfo(self):
+    def getInfo(self,**args):
         def format_result(r,token = None):
             photo = r["photo"]
             
@@ -799,6 +798,11 @@ class Photo(FlickrObject):
                 tags.append(Tag(token = token,**t))
             photo["tags"] = tags        
             photo["notes"] = [Photo.Note(token = token,**n) for n in _check_list(photo["notes"]["note"])]
+            
+            sizes = photo.pop("sizes",None)
+            if sizes :
+                photo["sizes"] = dict([(s['label'],s) for s in sizes["size"]])
+            
             return photo
         return args,format_result
 
@@ -894,7 +898,7 @@ class Photo(FlickrObject):
 
     def getSizes(self,**args):
         if "sizes" not in self.__dict__ :
-            self.__dict__["sizes"] = self._getSizes(self,**args)
+            self.__dict__["sizes"] = self._getSizes(**args)
         return self.sizes
 
     @caller("flickr.stats.getPhotoStats")
@@ -911,8 +915,23 @@ class Photo(FlickrObject):
             returns the URL to the photo's page.
         """
         return "http://www.flickr.com/photos/%s/%s"%(self.owner.id,self.id)
+        
+    def _getLargestSizeLabel(self):
+        """
+            returns the largest size for the current photo.
+        """
+        sizes = self.getSizes()
+        max_size = None
+        max_area = None
+        for sl,s in sizes.iteritems():
+            area = int(s["height"])*int(s["width"])
+            if max_area is None or area > max_area :
+                max_size = sl
+                max_area = area
+        return max_size
+        
     
-    def getPhotoUrl(self,size_label = 'Large'):
+    def getPhotoUrl(self,size_label = None):
         """
             returns the URL to the photo page corresponding to the
             given size.
@@ -928,12 +947,14 @@ class Photo(FlickrObject):
                 'Large' : 1024 on longest side
                 'Original' : original photo (not always available)
         """
+        if size_label is None :
+            size_label = self._getLargestSizeLabel()
         try :
             return self.getSizes()[size_label]["url"]
         except KeyError :
             raise FlickrError("The requested size is not available")
             
-    def getPhotoFile(self,size_label = 'Large'):
+    def getPhotoFile(self,size_label = None):
         """
             returns the URL to the photo file corresponding to the
             given size.
@@ -949,12 +970,14 @@ class Photo(FlickrObject):
                 'Large' : 1024 on longest side
                 'Original' : original photo (not always available)
         """
+        if size_label is None :
+            size_label = self._getLargestSizeLabel()
         try :
             return self.getSizes()[size_label]["source"]
         except KeyError :
             raise FlickrError("The requested size is not available")
         
-    def save(self,filename,size_label = 'Large'):
+    def save(self,filename,size_label = None):
         """
             saves the photo corresponding to the
             given size.
@@ -972,11 +995,13 @@ class Photo(FlickrObject):
                 'Large' : 1024 on longest side
                 'Original' : original photo (not always available)
         """
+        if size_label is None :
+            size_label = self._getLargestSizeLabel()
         r = urllib2.urlopen(self.getPhotoFile(size_label))
         with open(filename,'w+') as f:
             f.write(r.read())
     
-    def show(self,size_label = 'Large'):
+    def show(self,size_label = None):
         """
             Shows the photo corresponding to the
             given size.
@@ -996,7 +1021,8 @@ class Photo(FlickrObject):
                 'Large' : 1024 on longest side
                 'Original' : original photo (not always available)
         """
-        
+        if size_label is None :
+            size_label = self._getLargestSizeLabel()        
         r = urllib2.urlopen(self.getPhotoFile(size_label))
         b = cStringIO.StringIO(r.read())
         Image.open(b).show()
@@ -1051,14 +1077,8 @@ class Photo(FlickrObject):
 
     @static_caller("flickr.photos.search")
     def search(**args):        
-        args = _format_id("user")
+        args = _format_id("user",args)
         args = _format_extras(args)
-        try :
-            tags = args["tags"]
-            if isinstance(tags,list):
-                args["tags"] = ",".join(tags)
-        except KeyError : pass
-          
         return args,_extract_photo_list
 
     @caller("flickr.photos.geo.setContext")
@@ -1604,6 +1624,7 @@ def _extract_activity_list(r):
 def _format_id(name,args):
     try: args[name+"_id"] = args.pop(name).id
     except KeyError : pass
+    return args
 
 def _format_extras(args):
     try :
