@@ -3107,7 +3107,7 @@ class Photo(FlickrObject):
                     
         """
         try :
-            args['user_id'] = args['user_id'].id
+            args['user_id'] = args['user'].id
         except KeyError : pass
         try :
             extras = args["extras"]
