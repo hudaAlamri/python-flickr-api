@@ -21,7 +21,7 @@
 """
 import method_call
 from  flickrerrors import FlickrError
-from reflection import caller,FlickrAutoDoc
+from reflection import caller,static_caller,FlickrAutoDoc
 import urllib2
 from UserList import UserList
 import auth
@@ -143,13 +143,11 @@ class FlickrList(UserList):
         return '%s;%s'%(repr(self.data),repr(self.info))
 
 class Activity(FlickrObject):
-    @staticmethod
-    @caller("flickr.activity.userPhotos")
+    @static_caller("flickr.activity.userPhotos")
     def userPhotos(**args):
         return args,_extract_activity_list
 
-    @staticmethod
-    @caller("flickr.activity.userComments")
+    @static_caller("flickr.activity.userComments")
     def userComments(**args):
         return args,_extract_activity_list
         
@@ -183,8 +181,7 @@ class BlogService(FlickrObject):
     def postPhoto(self,**args):
         return _format_id(args),lambda r : None
         
-    @staticmethod    
-    @caller("flickr.blogs.getServices")
+    @static_caller("flickr.blogs.getServices")
     def getServices():
         return {},lambda r : [ BlogService(**s) for s in _check_list(r["services"]["service"]) ]    
 
@@ -225,8 +222,7 @@ class Collection(FlickrObject):
 class CommonInstitution(FlickrObject) :
     __display__ = ["id","name"]
     
-    @staticmethod
-    @caller("flickr.commons.getInstitutions")
+    @static_caller("flickr.commons.getInstitutions")
     def getInstitutions():
         def format_result(r):
             institutions = _check_list(r["institutions"]["institution"])
@@ -246,8 +242,7 @@ class CommonInstitutionUrl(FlickrObject):
     pass
 
 class Contact :
-    @staticmethod
-    @caller("flickr.contacts.getList")
+    @static_caller("flickr.contacts.getList")
     def getList(self,**args):
         def format_result(r):
             info = r["contacts"]
@@ -266,8 +261,7 @@ class Gallery(FlickrObject):
     def addPhoto(self,**args):
         return _format_id("photo",args),_none
 
-    @staticmethod
-    @caller("flickr.galleries.create")
+    @static_caller("flickr.galleries.create")
     def create(**args):
         return _format_id("primary_photo"), lambda r : Gallery(**r["gallery"])
 
@@ -287,8 +281,7 @@ class Gallery(FlickrObject):
             args["photo_ids"] = ",".join(photo_ids)
         return _format_id("primary_photo",args),_none
 
-    @staticmethod
-    @caller("flickr.urls.lookupGallery")
+    @static_caller("flickr.urls.lookupGallery")
     def getByUrl(url):
         def format_result(r):
             gallery = r["gallery"]
@@ -329,316 +322,93 @@ class Group(FlickrObject):
         dict_converter(["admin","eighteenplus","invistation_only"],bool)
     ]
     __display__ = ["id","name"]
+    __self_name__ = "group_id"
     
-    @staticmethod
+    @static_caller("flickr.groups.browse")
     def browse(**args):
-        """ method: flickr.groups.browse
+        def format_result(r,token):
+            cat = r["category"]
+            subcats = [ Category(**c) for c in _check_list(cat.pop("subcats"))]
+            groups = [ Group(id = g["nsid"], **g) for g in _check_list(cat.pop("group"))]
+            return Category(id = args["cat_id"], subcats = subcats, groups = groups, **cat)
+        return _format_id("cat",args),format_result
 
-            Browse the group category tree, finding groups and sub-categories.
-        
-        Authentication:
-
-            This method requires authentication with 'read' permission.
-        
-        Arguments:
-            cat_id (Optional)
-                The category id to fetch a list of groups and sub-categories for. If not 
-                specified, it defaults to zero, the root of the category tree. 
-                    
-        """
-        if "cat" in args : args["cat_id"] = args.pop("cat")
-        r = method_call.call_api(method = "flickr.groups.browse",auth_handler = self.getToken(),**args)
-        
-        cat = r["category"]
-        subcats = [ Category(**c) for c in _check_list(cat.pop("subcats"))]
-        groups = [ Group(id = g["nsid"], **g) for g in _check_list(cat.pop("group"))]
-        
-        return Category(id = args["cat_id"], subcats = subcats, groups = groups, **cat)
-
+    @caller("flickr.groups.getInfo")
     def getInfo(self,**args):
-        """ method: flickr.groups.getInfo
-            Get information about a group.
-        
-        Authentication:
-
-            This method does not require authentication.
-        
-        Arguments:.
-            lang (Optional)
-                The language of the group name and description to fetch. If the language 
-                is not found, the primary language of the group will be returned. Valid 
-                values are the same as in feeds. 
-        
-        """
-        
-        r = method_call.call_api(method = "flickr.groups.getInfo",**args)
         group = r["group"]
-        return group
+        return args,lambda r : r["group"]
+
+    @caller("flickr.urls.getGroup")
+    def getUrl(self,**args):
+        return args,lambda r : r["group"]["url"]
     
-    def getUrl(self):
-        """ method: flickr.urls.getGroup
-
-            Returns the url to a group's page.
-        
-        Authentication:
-
-            This method does not require authentication.
-
-        """
-        r = method_call.call_api(method = "flickr.urls.getGroup",group_id = self.id)
-        return r["group"]["url"]
-    
-    @staticmethod
-    def getByUrl(url):
-        """ method: flickr.urls.lookupGroup
-
-            Returns a group NSID, given the url to a group's page or photo pool.
-        
-        Authentication:
-
-            This method does not require authentication.
-        
-        """
-        r = method_call.call_api(method = "flickr.urls.lookupGroup",url = url)
-        group = r["group"]
-        group["name"] = group.pop("groupname")
-        return Group(**group)
+    @static_caller("flickr.urls.lookupGroup")
+    def getByUrl(url,**args):
+        args["url"] = url
+        def format_result(r):
+            group = r["group"]
+            group["name"] = group.pop("groupname")
+            return Group(**group)
+        return args,format_result
         
     
-    @staticmethod
+    @static_caller("flickr.groups.search")
     def search(**args):
-        """ method: flickr.groups.search -> (groups,info)
-            
-            Search for groups. 18+ groups will only be returned for 
-            authenticated calls where the authenticated user is over 18.
-        
-        Authentication:
+        def format_result(r,token):
+            info = r["groups"]
+            groups = [Group(**g) for g in info.pop("group")]
+            return FlickrList(groups,Info(**info))
+        return args,format_result
 
-            This method does not require authentication.
-        
-        Arguments:
-            text (Required)
-                The text to search for.
-            per_page (Optional)
-                Number of groups to return per page. If this argument is 
-                ommited, it defaults to 100. The maximum allowed value is 500.
-            page (Optional)
-                The page of results to return. If this argument is ommited, 
-                it defaults to 1. 
-        
-        
-        """
-        r = method_call.call_api(method = "flickr.groups.search",**args)
-        info = r["groups"]
-        groups = [Group(**g) for g in info.pop("group")]
-        return FlickrList(groups,Info(**info))
-        
+    @caller("flickr.groups.members.getList")
     def getMembers(self,**args):
-        """ method: flickr.groups.members.getList
-        
-            Get a list of the members of a group. The call must be signed on behalf of a Flickr member, and the ability to see the group membership will be determined by the Flickr member's group privileges.
-        Authentication:
-
-            This method requires authentication with 'read' permission.
-        
-        Arguments:
-            membertypes (Optional)
-                Comma separated list of member types
-
-                    2: member
-                    3: moderator
-                    4: admin
-
-                By default returns all types. (Returning super rare member 
-                type "1: narwhal" isn't supported by this API method)
-                
-            per_page (Optional)
-                Number of members to return per page. If this argument is 
-                omitted, it defaults to 100. The maximum allowed value is 500.
-            page (Optional)
-                The page of results to return. If this argument is omitted, 
-                it defaults to 1. 
-        
-        """
         try :
             membertypes = args["membertypes"]
             if isinstance(membertypes,list):
                 args["membertypes"] = ", ".join([str(i) for i in membertypes])
         except KeyError : pass
-        r = method_call.call_api(method = "flickr.groups.members.getList", group_id = self.id,auth_handler = self.getToken(),**args)
-        info = r["members"]
-        return FlickrList([ Person(**p) for p in _check_list(info.pop("member"))],Info(**info))
+        
+        def format_result(r):
+            info = r["members"]
+            return FlickrList([ Person(**p) for p in _check_list(info.pop("member"))],Info(**info))
+        return args,format_result
 
+    @caller("flickr.groups.pools.add")
     def addPhoto(self,**args):
-        """ method: flickr.groups.pools.add
-            Add a photo to a group's pool.
-        
-        Authentication:
+        return _format_id("photo",args),_none
 
-            This method requires authentication with 'write' permission.
-
-            Note: This method requires an HTTP POST request.
-        
-        Arguments:
-            photo_id (Required)
-                The id of the photo to add to the group pool. The photo 
-                must belong to the calling user.        
-        """
-        if "photo" in args : args["photo_id"] = args.pop("photo").id
-        r = method_call.call_api(method = "flickr.groups.pools.add",group_id = self.id, auth_handler = self.getToken(),**args)
-
+    @caller("flickr.groups.pools.getContext")
     def getPoolContext(self,**args):
-        """ method: flickr.groups.pools.getContext
-
-            Returns next and previous photos for a photo in a group pool.
-        
-        Authentication:
-
-            This method does not require authentication.
-        
-        Arguments:
-            photo_id (Required)
-                The id of the photo to fetch the context for.
-        """
-        if "photo" in args : args["photo_id"] = args.pop("photo").id
-        r = method_call.call_api(method = "flickr.groups.pools.getContext",group_id = self.id,**args)
+        return _format_id("photo",args), lambda r : Photo(**r["prevphoto"]),Photo(r["nextphoto"])
     
-        return Photo(**r["prevphoto"]),Photo(r["nextphoto"])
-    
-    @staticmethod
+    @static_caller("flickr.groups.pools.getGroups")
     def getGroups(**args):
-        """ method: flickr.groups.pools.getGroups
-       
-        Returns a list of groups to which you can add photos.
-    
-    Authentication:
+        def format_result(r,token):
+            info = r["groups"]
+            return FlickrList([ Group(id = g["nsid"], **g) for g in info.pop("group") ],Info(**info))
+        return args,format_result
 
-        This method requires authentication with 'read' permission.
-    
-    Arguments:
-        page (Optional)
-            The page of results to return. If this argument is omitted, 
-            it defaults to 1.
-        per_page (Optional)
-            Number of groups to return per page. If this argument is omitted, 
-            it defaults to 400. The maximum allowed value is 400. 
-        """
-        r = method_call.call_api(method = "flickr.groups.pools.getGroups", auth_handler = self.getToken(),**args)
-        info = r["groups"]
-        return FlickrList([ Group(id = g["nsid"], **g) for g in info.pop("group") ],Info(**info))
-
+    @caller("flickr.groups.pools.getPhotos")
     def getPhotos(self,**args):
-        """ method: flickr.groups.pools.getPhotos
-            
-            Returns a list of pool photos for a given group, based on the permissions of the group and the user logged in (if any).
-        
-        Authentication:
-
-            This method does not require authentication.
-        
-        Arguments:
-            tags (Optional)
-                A tag to filter the pool with. At the moment only one tag 
-                at a time is supported.
-            user_id (Optional)
-                The nsid of a user. Specifiying this parameter will retrieve 
-                for you only those photos that the user has contributed to 
-                the group pool.
-            extras (Optional)
-                A comma-delimited list of extra information to fetch for 
-                each returned record. Currently supported fields are: description, 
-                license, date_upload, date_taken, owner_name, icon_server, 
-                original_format, last_update, geo, tags, machine_tags, o_dims, 
-                views, media, path_alias, url_sq, url_t, url_s, url_m, url_z, 
-                url_l, url_o
-            per_page (Optional)
-                Number of photos to return per page. If this argument is 
-                omitted, it defaults to 100. The maximum allowed value is 500.
-            page (Optional)
-                The page of results to return. If this argument is omitted, 
-                it defaults to 1.       
-        
-        """
-        try :
-            extras = args["extras"]
-            if isinstance(extras,list):
-                args["extras"] = ",".join(extras)
-        except KeyError : pass
-        
-        r = method_call.call_api(method = "flickr.groups.pools.getPhotos",group_id = self.id,**args)
-        return _extract_photo_list(r)
+        return _format_extras(args),_extract_photo_list
     
+    @caller("flickr.groups.pools.remove")
     def removePhoto(self,**args):
-        """ method: flickr.groups.pools.remove
-        
-            Remove a photo from a group pool.
-        
-        Authentication:
+        return _format_id("photo",args),_none
 
-            This method requires authentication with 'write' permission.
-
-            Note: This method requires an HTTP POST request.
-        
-        Arguments:
-            photo_id (Required)
-                The id of the photo to remove from the group pool. The photo 
-                must either be owned by the calling user of the calling user 
-                must be an administrator of the group.        
-        """
-        if "photo" in args : args["photo_id"] = args.pop("photo").id
-        r = method_call.call_api(method = "flickr.groups.pools.remove",group_id = self.id, auth_handler = self.getToken(),**args)
-
-class Interestingness:
-    @staticmethod
-    def getList(**args):
-        """ method: flickr.interestingness.getList
-            
-            Returns the list of interesting photos for the most recent day or a user-specified date.
-        
-        Authentication:
-
-            This method does not require authentication.
-        
-        Arguments:
-            date (Optional)
-                A specific date, formatted as YYYY-MM-DD, to return interesting photos for.
-            extras (Optional)
-                A comma-delimited list of extra information to fetch for each returned record. Currently supported fields are: description, license, date_upload, date_taken, owner_name, icon_server, original_format, last_update, geo, tags, machine_tags, o_dims, views, media, path_alias, url_sq, url_t, url_s, url_m, url_z, url_l, url_o
-            per_page (Optional)
-                Number of photos to return per page. If this argument is omitted, it defaults to 100. The maximum allowed value is 500.
-            page (Optional)
-                The page of results to return. If this argument is omitted, it defaults to 1. 
-        
-        """
-        try :
-            extras = args["extras"]
-            if isinstance(extras,list):
-                args["extras"] = ",".join(extras)
-        except KeyError : pass
-
-        r = method_call.call_api(method = "flickr.interestingness.getList",**args)
-        return _extract_photo_list(r)
-        
-        
 
 class Licence(FlickrObject):
     __display__ = ["id","name"]
+    __self_name__ = "licence_id"
     
-    @staticmethod
+    @static_caller("flickr.photos.licenses.getInfo")
     def getList():
-        """ method: flickr.photos.licenses.getInfo
-        
-        Fetches a list of available photo licenses for Flickr.
-        
-    Authentication:
-        This method does not require authentication.
-        """
-
-        r = method_call.call_api(method = "flickr.photos.licences.getInfo")
-        licences = r["licences"]["licence"]
-        if not isinstance(licences):
-            licences = [licences]
-        return [Licence(**l) for l in licences]
+        def format_result(r):
+            licences = r["licences"]["licence"]
+            if not isinstance(licences,list):
+                licences = [licences]
+            return [Licence(**l) for l in licences]
+        return {},format_result
 
 class Location(FlickrObject):
     __display__ = ["latitude","longitude","accuracy"]
@@ -660,173 +430,52 @@ class MachineTag(FlickrObject):
     class Value(FlickrObject):
         __display__ = ["usage","namespace","predicate","text"]
     
-    @staticmethod
+    @static_caller("flickr.machinetags.getNamespaces")
     def getNamespaces(**args):
-        """ method: flickr.machinetags.getNamespaces
-          
-            Return a list of unique namespaces, optionally limited by a given predicate, in alphabetical order.
-        
-        Authentication:
-
-            This method does not require authentication.
-        
-        Arguments:
-            predicate (Optional)
-                Limit the list of namespaces returned to those that have the following predicate.
-            per_page (Optional)
-                Number of photos to return per page. If this argument is omitted, it defaults to 100. The maximum allowed value is 500.
-            page (Optional)
-                The page of results to return. If this argument is omitted, it defaults to 1. 
-        
-        """
-        r = method_call.call_api(method = "flickr.machinetags.getNamespaces",**args)
-        info = r["namespaces"]
-        return FlickrList([ Namespace(**ns) for ns in _check_list(info.pop("namespace"))],Info(info))
+        def format_result(r):
+            info = r["namespaces"]
+            return FlickrList([ Namespace(**ns) for ns in _check_list(info.pop("namespace"))],Info(info))
+        return args,format_result
     
-    @staticmethod
+    @static_caller("flickr.machinetags.getPairs")
     def getPairs(**args):
-        """ method: flickr.machinetags.getPairs
-        
-            Return a list of unique namespace and predicate pairs, optionally limited by predicate or namespace, in alphabetical order.
-        
-        Authentication:
+        def format_result(r):
+            info = r["pairs"]
+            return FlickrList([ Pair(**p) for ns in _check_list(info.pop("pair"))],Info(info))
+        return args,format_result
 
-            This method does not require authentication.
-        
-        Arguments:
-            namespace (Optional)
-                Limit the list of pairs returned to those that have the following namespace.
-            predicate (Optional)
-                Limit the list of pairs returned to those that have the following predicate.
-            per_page (Optional)
-                Number of photos to return per page. If this argument is omitted, it defaults to 100. The maximum allowed value is 500.
-            page (Optional)
-                The page of results to return. If this argument is omitted, it defaults to 1. 
-        
-        """
-        r = method_call.call_api(method = "flickr.machinetags.getPairs",**args)
-        info = r["pairs"]
-        return FlickrList([ Pair(**p) for ns in _check_list(info.pop("pair"))],Info(info))
-
+    @static_caller("flickr.machinetags.getPredicates")
     def getPredicates(**args):
-        """ method: flickr.machinetags.getPredicates
-            
-            Return a list of unique predicates, optionally limited by a given namespace.
-        
-        Authentication:
-
-            This method does not require authentication.
-        
-        Arguments:
-            namespace (Optional)
-                Limit the list of predicates returned to those that have 
-                the following namespace.
-            per_page (Optional)
-                Number of photos to return per page. If this argument is 
-                omitted, it defaults to 100. The maximum allowed value is 500.
-            page (Optional)
-                The page of results to return. If this argument is omitted, 
-                it defaults to 1.
-        """
-        r = method_call.call_api(method = "flickr.machinetags.getPredicates",**args)
-        info = r["predicates"]
-        return FlickrList([ Predicate(**p) for p in _check_list(info.pop("predicate"))],Info(info))
+        def format_result(r):
+            info = r["predicates"]
+            return FlickrList([ Predicate(**p) for p in _check_list(info.pop("predicate"))],Info(info))
+        return args,format_result
     
-    @staticmethod
+    @static_caller("flickr.machinetags.getRecentValues")
     def getRecentValues(**args):
-        """ method: flickr.machinetags.getRecentValues
-        
-            Fetch recently used (or created) machine tags values.
-        
-        Authentication:
+        def format_result(r):
+            info = r["values"]
+            return FlickrList([ Value(**v) for v in _check_list(info.pop("value"))],Info(info))
+        return args,format_result
 
-            This method does not require authentication.
-        
-        Arguments:
-
-            namespace (Optional)
-                A namespace that all values should be restricted to.
-            predicate (Optional)
-                A predicate that all values should be restricted to.
-            added_since (Optional)
-                Only return machine tags values that have been added since 
-                this timestamp, in epoch seconds. 
-        """
-        r = method_call.call_api(method = "flickr.machinetags.getRecentValues",**args)
-        info = r["values"]
-        return FlickrList([ Value(**v) for v in _check_list(info.pop("value"))],Info(info))
-
-    @staticmethod
+    @static_caller("flickr.machinetags.getValues")
     def getValues(**args):
-        """ method: flickr.machinetags.getValues
-            Return a list of unique values for a namespace and predicate.
-        
-        Authentication:
-
-            This method does not require authentication.
-        
-        Arguments:
-            namespace (Required)
-                The namespace that all values should be restricted to.
-            predicate (Required)
-                The predicate that all values should be restricted to.
-            per_page (Optional)
-                Number of photos to return per page. If this argument is omitted, it defaults to 100. The maximum allowed value is 500.
-            page (Optional)
-                The page of results to return. If this argument is omitted, it defaults to 1. 
-        
-        """
-        r = method_call.call_api(method = "flickr.machinetags.getRecentValues",**args)
-        info = r["values"]
-        return FlickrList([ Value(**v) for v in _check_list(info.pop("value"))],Info(info))
-
+        def format_result(r):
+            info = r["values"]
+            return FlickrList([ Value(**v) for v in _check_list(info.pop("value"))],Info(info))
+        return args,format_result
 
 class Panda(FlickrObject):
     __display__ = ["name"]
+    __self_name__ = 'panda_name'
     
-    @staticmethod
+    @static_caller("flickr.panda.getList")
     def getList():
-        """ method: flickr.panda.getList
-            Return a list of Flickr pandas, from whom you can request photos using the flickr.panda.getPhotos API method.
+        return {},lambda r : [ Panda(name=p,id = p) for p in r["pandas"]["panda"] ]
 
-            More information about the pandas can be found on the dev blog.
-
-        Authentication:
-
-            This method does not require authentication.
-        """
-        r = method_call.call_api(method = "flickr.panda.getList")
-        return [ Panda(name=p) for p in r["pandas"]["panda"] ]
-
+    @caller("flickr.panda.getPhotos")
     def getPhotos(self,**args):
-        """ method: flickr.panda.getPhotos
-            Ask the Flickr Pandas for a list of recent public (and "safe") photos.
-
-            More information about the pandas can be found on the dev blog.
-        
-        Authentication:
-
-            This method does not require authentication.
-            
-        You can fetch a list of all the current pandas using the flickr.panda.getList API method.
-        Arguments:
-                
-            extras (Optional)
-                A comma-delimited list of extra information to fetch for each returned record. Currently supported fields are: description, license, date_upload, date_taken, owner_name, icon_server, original_format, last_update, geo, tags, machine_tags, o_dims, views, media, path_alias, url_sq, url_t, url_s, url_m, url_z, url_l, url_o
-            per_page (Optional)
-                Number of photos to return per page. If this argument is omitted, it defaults to 100. The maximum allowed value is 500.
-            page (Optional)
-                The page of results to return. If this argument is omitted, it defaults to 1. 
-        
-        """
-        try :
-            extras = args["extras"]
-            if isinstance(extras,list):
-                args["extras"] = ",".join(extras)
-        except KeyError : pass
-        
-        r = method_call.call_api(method = "flickr.panda.getPhotos",panda_name = self.name,**args)
-        return _extract_photo_list(r)
+        return _format_extras(args),_extract_photo_list
 
 class Person(FlickrObject):
     __converters__ = [
@@ -855,18 +504,15 @@ class Person(FlickrObject):
             token = auth.token_factory(filename = filename, token_key = token_key, token_secret = token_secret)
         return test.login(token)
 
-    @staticmethod
-    @caller("flickr.people.findByUsername")
+    @static_caller("flickr.people.findByUsername")
     def findByEmail(find_email):
         return {'find_email':find_email},lambda r : Person(**r["user"])
         
-    @staticmethod
-    @caller("flickr.people.findByUsername")
+    @static_caller("flickr.people.findByUsername")
     def findByUserName(username):
         return {'username':username},lambda r : Person(**r["user"])
         
-    @staticmethod
-    @caller("flickr.urls.lookupUser")
+    @static_caller("flickr.urls.lookupUser")
     def findByUrl(url):
         return {'url':url}, lambda r : Person(**r["user"])
 
@@ -980,32 +626,6 @@ class Person(FlickrObject):
 
     @caller("flickr.photos.getContactsPhotos")
     def getContactsPhotos(self,**args):
-        """ method: flickr.photos.getContactsPhotos
-            Fetch a list of recent photos from the calling users' contacts.
-            
-        Authentication:
-            This method requires authentication with 'read' permission.
-        
-        Arguments:
-            count (Optional)
-                Number of photos to return. Defaults to 10, maximum 50. 
-                This is only used if single_photo is not passed.
-            just_friends (Optional)
-                set as 1 to only show photos from friends and family 
-                (excluding regular contacts).
-            single_photo (Optional)
-                Only fetch one photo (the latest) per contact, instead of 
-                all photos in chronological order.
-            include_self (Optional)
-                Set to 1 to include photos from the calling user.
-            extras (Optional)
-                A comma-delimited list of extra information to fetch for 
-                each returned record. Currently supported fields 
-                include: license, date_upload, date_taken, owner_name, 
-                icon_server, original_format, last_update. For more
-                information see extras under flickr.photos.search. 
-        """
-        r = method_call.call_api(method = "flickr.photos.getContactsPhotos", auth_handler = self.getToken(),**args)
         def format_result(r,token = None):
             photos = r["photos"]["photo"]
             photos_ = []
@@ -1031,8 +651,7 @@ class Person(FlickrObject):
     def removeFromFavorites(self,**args):
         return _format_id("photo",args),_none
 
-    @staticmethod
-    @caller("flickr.photos.getNotInSet")
+    @static_caller("flickr.photos.getNotInSet")
     def getNotInSetPhotos(**args):
         return _format_extras(args),_extract_photo_list
 
@@ -1056,8 +675,7 @@ class Photo(FlickrObject):
         def edit(self, **args):
             return args,_none
 
-        @staticmethod
-        @caller("flickr.photos.comments.getRecentForContacts")
+        @static_caller("flickr.photos.comments.getRecentForContacts")
         def getRecentForContacts(**args):
             return _format_extras(args),_extract_photo_list
 
@@ -1115,8 +733,7 @@ class Photo(FlickrObject):
     def correctLocation(self,**args):
         return _format_id("place",args),_none
     
-    @staticmethod
-    @caller("flickr.photos.upload.checkTickets")
+    @static_caller("flickr.photos.upload.checkTickets")
     def checkUploadTickets(self,tickets,**args):
         def format_result(r,token = None):
             tickets = r["wrapper"]["uploader"]["ticket"]
@@ -1261,8 +878,11 @@ class Photo(FlickrObject):
         """
         return self.notes
 
-    @staticmethod
-    @caller("flickr.photos.getRecent")
+    @static_caller("flickr.interestingness.getList")
+    def getInteresting(**args):
+        return _format_extras(args),_extract_photo_list
+
+    @static_caller("flickr.photos.getRecent")
     def getRecent(**args):        
         return _format_extras(args),_extract_photo_list
     
@@ -1279,22 +899,6 @@ class Photo(FlickrObject):
 
     @caller("flickr.stats.getPhotoStats")
     def getStats(self,date,**args):
-        """ method: flickr.stats.getPhotosStats
-        
-            Get the number of views on a photo for a given date.
-        
-        Authentication:
-
-            This method requires authentication with 'read' permission.
-        
-        Arguments:
-            date (Required)
-                Stats will be returned for this date. This should be in 
-                either be in YYYY-MM-DD or unix timestamp format. A day 
-                according to Flickr Stats starts at midnight GMT for all 
-                users, and timestamps will automatically be rounded down 
-                to the start of the day.
-        """
         args["date"] = date
         return args,lambda r : dict([(k,int(v)) for k,v in r["stats"].iteritems()])
     
@@ -1397,21 +1001,19 @@ class Photo(FlickrObject):
         b = cStringIO.StringIO(r.read())
         Image.open(b).show()
 
-    @staticmethod
-    @caller("flickr.photos.getUntagged")
+    @static_caller("flickr.photos.getUntagged")
     def getUntagged(**args):
         return _format_extras(args),_extract_photo_list
 
-    @staticmethod
-    @caller("flickr.photos.getWithGeoData")
+    @static_caller("flickr.photos.getWithGeoData")
     def getWithGeoData(**args): 
         return _format_extras(args),_extract_photo_list
 
-    @staticmethod
-    @caller("flickr.photos.getWithoutGeoData")
+    @static_caller("flickr.photos.getWithoutGeoData")
     def getWithoutGeoData(**args):
         return _format_extras(args),_extract_photo_list
 
+    @caller("flickr.photos.people.getList")
     def getPeople(self,**args):
         def format_result(r,token):
             info = r["people"]
@@ -1426,8 +1028,7 @@ class Photo(FlickrObject):
             return people_
         return args,format_result
 
-    @staticmethod
-    @caller("flickr.photos.recentlyUpdated")
+    @static_caller("flickr.photos.recentlyUpdated")
     def recentlyUpdated(**args):
         return _format_extras(args),_extract_photo_list
 
@@ -1448,8 +1049,7 @@ class Photo(FlickrObject):
             return Photo(token = token,id = photo_id, secret = photo_secret)
         return args,format_result
 
-    @staticmethod
-    @caller("flickr.photos.search")
+    @static_caller("flickr.photos.search")
     def search(**args):        
         args = _format_id("user")
         args = _format_extras(args)
@@ -1503,8 +1103,7 @@ class Photo(FlickrObject):
         args["tags"] = tags
         return args,_none
 
-    @staticmethod
-    @caller("flickr.photos.geo.photosForLocation")
+    @static_caller("flickr.photos.geo.photosForLocation")
     def photosForLocation(**args):
         return args,_extract_photo_list
 
@@ -1541,8 +1140,7 @@ class Photoset(FlickrObject):
     def addComment(self,**args):
         return args, lambda r,token : Photoset.Comment(token = token,photoset = self,**r)
 
-    @staticmethod
-    @caller("flickr.photosets.create")
+    @static_caller("flickr.photosets.create")
     def create(**args):
         try :
             pphoto = args.pop("primary_photo")
@@ -1623,8 +1221,7 @@ class Photoset(FlickrObject):
         args["date"] = date
         return args, lambda r : dict([(k,int(v)) for k,v in r["stats"].iteritems()])
         
-    @staticmethod
-    @caller("flickr.photosets.orderSets")
+    @static_caller("flickr.photosets.orderSets")
     def orderSets(**args):
         try :
             photosets = args.pop("photosets")
@@ -1688,13 +1285,11 @@ class Place(FlickrObject):
             dict_converter(["count"],int),
         ]
 
-    @staticmethod
-    @caller("flickr.places.find")
+    @static_caller("flickr.places.find")
     def find(**args):
         return args,_extract_place_list
 
-    @staticmethod
-    @caller("flickr.places.findByLatLon")
+    @static_caller("flickr.places.findByLatLon")
     def findByLatLon(**args):
         return args,_extract_place_list
         
@@ -1742,21 +1337,18 @@ class Place(FlickrObject):
         place["id"] = place.pop("place_id")
         return place
 
-    @staticmethod
-    @caller("flickr.places.getInfoByUrl")
+    @static_caller("flickr.places.getInfoByUrl")
     def getByUrl(url):
         return {'url' : url}, lambda r : Place(**Place.parse_place(r["place"]))
     
-    @staticmethod
-    @caller("flickr.places.getPlaceTypes")
+    @static_caller("flickr.places.getPlaceTypes")
     def getPlaceTypes(**args):
         def format_result(r):
             places_types = r["place_types"]["place_type"]
             return [ Place.Type(id = pt.pop("place_type_id"), **pt) for pt in place_types ]
         return args,format_result
 
-    @staticmethod
-    @caller("flickr.places.getShapeHistory")
+    @static_caller("flickr.places.getShapeHistory")
     def getShapeHistory(**args):
         def format_result(r):
             info = r["shapes"]
@@ -1767,26 +1359,22 @@ class Place(FlickrObject):
     def getTopPlaces(self,**args):
         return args,_extract_place_list
         
-    @staticmethod
-    @caller("flickr.places.placesForBoundingBox")
+    @static_caller("flickr.places.placesForBoundingBox")
     def placesForBoundingBox(**args):
         def format_result(r):
             info = r["places"]
             return [Place(id = place.pop("place_id"), **place) for place in info.pop("place")]
         return args,format_result
     
-    @staticmethod
-    @caller("flickr.places.placesForTags")    
+    @static_caller("flickr.places.placesForTags")    
     def placesForTags(**args):
         return args,_extract_place_list
 
-    @staticmethod
-    @caller("flickr.places.placesForUser")
+    @static_caller("flickr.places.placesForUser")
     def placesForUser(**args):
         return args,_extract_place_list
         
-    @staticmethod
-    @caller("flickr.places.tagsForPlace")
+    @static_caller("flickr.places.tagsForPlace")
     def tagsForPlace(**args):
         args = _format_id("place",args)
         args = _format_id("woe",args)
@@ -1797,24 +1385,20 @@ class Place(FlickrObject):
         return args,lambda r : [Place.Tag(**t) for t in r["tags"]["tag"]]
         
 class prefs:
-    @staticmethod
-    @caller("flickr.prefs.getContentType")
+    @static_caller("flickr.prefs.getContentType")
     def getContentType(**args):
         return args,lambda r : r["person"]["content_type"]
 
-    @staticmethod
-    @caller("flickr.prefs.getGeoPerms")
+    @static_caller("flickr.prefs.getGeoPerms")
     def getContentType(**args):        
         p = r["person"]
         return args,lambda r : r["person"]
     
-    @staticmethod
-    @caller("flickr.prefs.getHidden")
+    @static_caller("flickr.prefs.getHidden")
     def getHidden(**args):
         return args,lambda r : bool(r["person"]["hidden"])
 
-    @staticmethod
-    @caller("flickr.prefs.getPrivacy")
+    @static_caller("flickr.prefs.getPrivacy")
     def getPrivacy(**args):
         return args,lambda r : r["person"]["privacy"]
     
@@ -1823,13 +1407,11 @@ class prefs:
         return args, lambda r : r["person"]["safety_level"]
 
 class Reflection:
-    @staticmethod
-    @caller("flickr.reflection.getMethodInfo")
+    @static_caller("flickr.reflection.getMethodInfo")
     def getMethodInfo(method_name):
         return {"method_name":method_name},lambda r : r["method"]
     
-    @staticmethod
-    @caller("flickr.reflection.getMethods")
+    @static_caller("flickr.reflection.getMethods")
     def getMethods():
         return {} , lambda r : r["methods"]["method"]
 
@@ -1843,8 +1425,7 @@ class stats:
             dict_converter(["views"],int),
         ]
     
-    @staticmethod
-    @caller("flickr.stats.getCollectionDomains")
+    @static_caller("flickr.stats.getCollectionDomains")
     def getCollectionDomains(**args):
         def format_result(r):
             info = r["domains"]
@@ -1852,8 +1433,7 @@ class stats:
             return FlickrList(domains,Info(**info))
         return _format_id("collection",args),format_result
 
-    @staticmethod
-    @caller("flickr.stats.getCollectionReferrers")
+    @static_caller("flickr.stats.getCollectionReferrers")
     def getCollectionReferrers(**args):
         def format_result(r):
             info = r["domain"]
@@ -1861,18 +1441,15 @@ class stats:
             return FlickrList(domains,Info(**info))
         return _format_id("collection",args),format_result
     
-    @staticmethod
-    @caller("flickr.stats.getCSVFiles")
+    @static_caller("flickr.stats.getCSVFiles")
     def getCSVFiles():
         return {},lambda r : r["stats"]["csvfiles"]["csv"]
     
-    @staticmethod
-    @caller("flickr.stats.getPhotoDomains")
+    @static_caller("flickr.stats.getPhotoDomains")
     def getPhotoDomains(**args):
         return _format_id("photo",args),format_result
 
-    @staticmethod
-    @caller("flickr.stats.getPhotoReferrers")
+    @static_caller("flickr.stats.getPhotoReferrers")
     def getPhotoReferrers(**args):
         def format_result(r):
             info = r["domain"]
@@ -1880,8 +1457,7 @@ class stats:
             return FlickrList(domains,Info(**info))
         return _format_id("photo",args),format_result
 
-    @staticmethod
-    @caller("flickr.stats.getPhotosetDomains")
+    @static_caller("flickr.stats.getPhotosetDomains")
     def getPhotosetDomains(**args):
         def format_result(r):
             info = r["domains"]
@@ -1889,8 +1465,7 @@ class stats:
             return FlickrList(domains,Info(**info))
         return _format_id("photoset",args),format_result
 
-    @staticmethod
-    @caller("flickr.stats.getPhotosetReferrers")
+    @static_caller("flickr.stats.getPhotosetReferrers")
     def getPhotosetReferrers(**args):
         def format_result(r):
             info = r["domain"]
@@ -1898,8 +1473,7 @@ class stats:
             return FlickrList(domains,Info(**info))
         return _format_id("photoset",args),format_result
 
-    @staticmethod
-    @caller("flickr.stats.getPhotostreamDomains")
+    @static_caller("flickr.stats.getPhotostreamDomains")
     def getPhotostreamDomains(**args):
         def format_result(r):
             info = r["domains"]
@@ -1907,8 +1481,7 @@ class stats:
             return FlickrList(domains,Info(**info))
         return args,format_result
 
-    @staticmethod
-    @caller("flickr.stats.getPhotostreamReferrers")
+    @static_caller("flickr.stats.getPhotostreamReferrers")
     def getPhotostreamReferrers(**args):
         def format_result(r):
             info = r["domain"]
@@ -1916,14 +1489,12 @@ class stats:
             return FlickrList(domains,Info(**info))
         return args,format_result
     
-    @staticmethod
-    @caller("flickr.stats.getPhotostreamStats")
+    @static_caller("flickr.stats.getPhotostreamStats")
     def getPhotostreamStats(date,**args):
         args["date"] = date
         return args,lambda r : int(r["stats"]["views"])
 
-    @staticmethod
-    @caller("flickr.stats.getPopularPhotos")
+    @static_caller("flickr.stats.getPopularPhotos")
     def getPopularPhotos():
         def format_result(r):
             info = r["photos"]
@@ -1934,8 +1505,7 @@ class stats:
             return FlickrList(photos,Info(**info))
         return {},format_result
     
-    @staticmethod
-    @caller("flickr.stats.getTotalViews")
+    @static_caller("flickr.stats.getTotalViews")
     def getTotalViews(**args):
         return args,lambda r : r["stats"]
 
@@ -1955,57 +1525,48 @@ class Tag(FlickrObject):
     def remove(self,**args):
         return args,_none
     
-    @staticmethod
-    @caller("flickr.tags.getClusters")
+    @static_caller("flickr.tags.getClusters")
     def getClusters(**args):
         def format_result(r):
             clusters = r["clusters"]["cluster"]
             return [ Tag.Cluster(tag = args["tag"], tags = [Tag(text = t) for t in c["tag"]],total = c["total"] )for c in clusters ]
         return args,format_result
     
-    @staticmethod
-    @caller("flickr.tags.getHotList")
+    @static_caller("flickr.tags.getHotList")
     def getHotList(**args):
         return args,lambda r : [Tag(**t) for t in r["hottags"]["tag"]]
 
-    @staticmethod
-    @caller("flickr.tags.getListUser")
+    @static_caller("flickr.tags.getListUser")
     def getListUser(**args):
         return _format_id("user",args) , lambda r : [Tag(**t) for t in r["who"]["tags"]["tag"]]
         
-    @staticmethod
-    @caller("flickr.tags.getListUserPopular")
+    @static_caller("flickr.tags.getListUserPopular")
     def getListUserPopular(**args):
         return _format_id("user",args) , lambda r : [Tag(**t) for t in r["who"]["tags"]["tag"]]
 
-    @staticmethod
-    @caller("flickr.tags.getListUserRaw")
+    @static_caller("flickr.tags.getListUserRaw")
     def getListUserRaw(**args):
         def format_result(r):
             tags = r["who"]["tags"]["tag"]
             return [{'clean': t["clean"],"raws": t["raw"]} for t in tags]
         return args,format_result
         
-    @staticmethod
-    @caller("flickr.tags.getRelated")
+    @static_caller("flickr.tags.getRelated")
     def getRelated(tag,**args):
         args["tag"] = tag
         return args, lambda r : r["tags"]["tag"]
 
 class test(object):
-    @staticmethod
-    @caller("flickr.test.echo")
+    @static_caller("flickr.test.echo")
     def echo(**args):
         return args,lambda r : r
         
     
-    @staticmethod
-    @caller("flickr.test.login")
+    @static_caller("flickr.test.login")
     def login(**args):
         return args,lambda r : Person(token = token,**r["user"])
             
-    @staticmethod
-    @caller("flickr.test.null")
+    @static_caller("flickr.test.null")
     def null():
         return {},_none
 
