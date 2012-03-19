@@ -17,7 +17,6 @@ def methods_info():
         info = call_api(method = "flickr.reflection.getMethodInfo",method_name = m)
         info.pop("stat")
         method = info.pop("method")
-        conv(method)
         method["requiredperms"] = __perms__[method["requiredperms"]]
         method["needslogin"] = bool(method.pop("needslogin"))
         method["needssigning"] = bool(method.pop("needssigning"))
@@ -32,8 +31,23 @@ def write_reflection(path,template,methods = None):
         methods = methods_info()
     with open(template,"r") as t :
         templ = t.read()
+    
+    prefix = ""
+    new_templ = ""
+    tab = "    "
+    templ = templ%str(methods)
+    for c in templ :
+        if c == '{' :
+            new_templ += '{\n'+prefix
+            prefix += tab
+        elif c == '}' :
+            new_templ += '\n'+prefix+'}\n'+prefix
+            prefix = prefix[:-len(tab)]
+        else :
+            new_templ += c
+    
     with open(path,"w") as f:
-        f.write(templ%str(methods))
+        f.write(new_templ)
 
 def write_doc(output_path,exclude = ["flickr_keys","methods"]):
     import flickr_api
