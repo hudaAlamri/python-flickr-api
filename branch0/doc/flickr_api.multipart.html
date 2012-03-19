@@ -1,0 +1,48 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html><head><title>Python: module flickr_api.multipart</title>
+</head><body bgcolor="#f0f0f8">
+
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="heading">
+<tr bgcolor="#7799ee">
+<td valign=bottom>&nbsp;<br>
+<font color="#ffffff" face="helvetica, arial">&nbsp;<br><big><big><strong><a href="flickr_api.html"><font color="#ffffff">flickr_api</font></a>.multipart</strong></big></big></font></td
+><td align=right valign=bottom
+><font color="#ffffff" face="helvetica, arial"><a href=".">index</a><br><a href="file:/export/home/mignon/.local/lib/python2.6/site-packages/flickr_api/multipart.py">/export/home/mignon/.local/lib/python2.6/site-packages/flickr_api/multipart.py</a></font></td></tr></table>
+    <p><tt>Deals&nbsp;with&nbsp;multipart&nbsp;POST&nbsp;requests.<br>
+&nbsp;<br>
+The&nbsp;code&nbsp;is&nbsp;adapted&nbsp;from&nbsp;the&nbsp;recipe&nbsp;found&nbsp;at&nbsp;:<br>
+<a href="http://code.activestate.com/recipes/146306/">http://code.activestate.com/recipes/146306/</a><br>
+No&nbsp;author&nbsp;name&nbsp;was&nbsp;given.<br>
+&nbsp;<br>
+Author&nbsp;:&nbsp;Alexis&nbsp;Mignon&nbsp;(c)<br>
+email&nbsp;&nbsp;:&nbsp;alexis.mignon@gmail.Com<br>
+Date&nbsp;&nbsp;&nbsp;:&nbsp;06/08/2011</tt></p>
+<p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#aa55cc">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#ffffff" face="helvetica, arial"><big><strong>Modules</strong></big></font></td></tr>
+    
+<tr><td bgcolor="#aa55cc"><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</tt></td><td>&nbsp;</td>
+<td width="100%"><table width="100%" summary="list"><tr><td width="25%" valign=top><a href="httplib.html">httplib</a><br>
+</td><td width="25%" valign=top><a href="mimetypes.html">mimetypes</a><br>
+</td><td width="25%" valign=top><a href="urlparse.html">urlparse</a><br>
+</td><td width="25%" valign=top></td></tr></table></td></tr></table><p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#eeaa77">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#ffffff" face="helvetica, arial"><big><strong>Functions</strong></big></font></td></tr>
+    
+<tr><td bgcolor="#eeaa77"><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</tt></td><td>&nbsp;</td>
+<td width="100%"><dl><dt><a name="-encode_multipart_formdata"><strong>encode_multipart_formdata</strong></a>(fields, files)</dt><dd><tt>fields&nbsp;is&nbsp;a&nbsp;sequence&nbsp;of&nbsp;(name,&nbsp;value)&nbsp;elements&nbsp;for&nbsp;regular&nbsp;form&nbsp;fields.<br>
+files&nbsp;is&nbsp;a&nbsp;sequence&nbsp;of&nbsp;(name,&nbsp;filename,&nbsp;value)&nbsp;elements&nbsp;for&nbsp;data&nbsp;to&nbsp;be&nbsp;uploaded&nbsp;as&nbsp;files<br>
+Return&nbsp;(content_type,&nbsp;body)&nbsp;ready&nbsp;for&nbsp;httplib.HTTP&nbsp;instance</tt></dd></dl>
+ <dl><dt><a name="-get_content_type"><strong>get_content_type</strong></a>(filename)</dt></dl>
+ <dl><dt><a name="-post_multipart"><strong>post_multipart</strong></a>(host, selector, fields, files)</dt><dd><tt>Post&nbsp;fields&nbsp;and&nbsp;files&nbsp;to&nbsp;an&nbsp;http&nbsp;host&nbsp;as&nbsp;multipart/form-data.<br>
+fields&nbsp;is&nbsp;a&nbsp;sequence&nbsp;of&nbsp;(name,&nbsp;value)&nbsp;elements&nbsp;for&nbsp;regular&nbsp;form&nbsp;fields.<br>
+files&nbsp;is&nbsp;a&nbsp;sequence&nbsp;of&nbsp;(name,&nbsp;filename,&nbsp;value)&nbsp;elements&nbsp;for&nbsp;data&nbsp;to&nbsp;be&nbsp;uploaded&nbsp;as&nbsp;files<br>
+Return&nbsp;the&nbsp;server's&nbsp;response&nbsp;page.</tt></dd></dl>
+ <dl><dt><a name="-posturl"><strong>posturl</strong></a>(url, fields, files)</dt></dl>
+</td></tr></table>
+</body></html>

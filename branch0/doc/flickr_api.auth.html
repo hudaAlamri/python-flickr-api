@@ -1,0 +1,188 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html><head><title>Python: module flickr_api.auth</title>
+</head><body bgcolor="#f0f0f8">
+
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="heading">
+<tr bgcolor="#7799ee">
+<td valign=bottom>&nbsp;<br>
+<font color="#ffffff" face="helvetica, arial">&nbsp;<br><big><big><strong><a href="flickr_api.html"><font color="#ffffff">flickr_api</font></a>.auth</strong></big></big></font></td
+><td align=right valign=bottom
+><font color="#ffffff" face="helvetica, arial"><a href=".">index</a><br><a href="file:/export/home/mignon/.local/lib/python2.6/site-packages/flickr_api/auth.py">/export/home/mignon/.local/lib/python2.6/site-packages/flickr_api/auth.py</a></font></td></tr></table>
+    <p><tt>Authentication&nbsp;capabilities&nbsp;for&nbsp;the&nbsp;Flickr&nbsp;API.<br>
+&nbsp;<br>
+It&nbsp;implements&nbsp;the&nbsp;new&nbsp;authentication&nbsp;specifications&nbsp;of&nbsp;Flickr<br>
+based&nbsp;on&nbsp;OAuth.<br>
+&nbsp;<br>
+The&nbsp;authentication&nbsp;process&nbsp;is&nbsp;in&nbsp;3&nbsp;steps.<br>
+&nbsp;<br>
+-&nbsp;Authorisation&nbsp;request&nbsp;:<br>
+&gt;&gt;&gt;&nbsp;a&nbsp;=&nbsp;<a href="#AuthHandler">AuthHandler</a>(call_back_url)<br>
+&gt;&gt;&gt;&nbsp;a.get_authorization_url('write')<br>
+print&nbsp;&nbsp;'<a href="http://www.flickr.com/services/oauth/authorize?oauth_token=xxxx&amp;perms=write">http://www.flickr.com/services/oauth/authorize?oauth_token=xxxx&amp;perms=write</a>'<br>
+&nbsp;<br>
+-&nbsp;The&nbsp;user&nbsp;gives&nbsp;his&nbsp;authorization&nbsp;at&nbsp;the&nbsp;url&nbsp;given&nbsp;by&nbsp;'get_authorization_url'<br>
+&nbsp;&nbsp;and&nbsp;is&nbsp;redrected&nbsp;to&nbsp;the&nbsp;'call_back_url'&nbsp;with&nbsp;the&nbsp;oauth_verifier&nbsp;encoded<br>
+&nbsp;&nbsp;in&nbsp;the&nbsp;url.&nbsp;This&nbsp;value&nbsp;can&nbsp;then&nbsp;be&nbsp;given&nbsp;to&nbsp;the&nbsp;<a href="#AuthHandler">AuthHandler</a>:<br>
+&nbsp;&nbsp;<br>
+&gt;&gt;&gt;&nbsp;a.set_verifier("66455xxxxx")<br>
+&nbsp;<br>
+-&nbsp;The&nbsp;authorization&nbsp;handler&nbsp;can&nbsp;then&nbsp;be&nbsp;set&nbsp;for&nbsp;the&nbsp;python&nbsp;session<br>
+&nbsp;&nbsp;and&nbsp;will&nbsp;be&nbsp;automatically&nbsp;used&nbsp;when&nbsp;needed.<br>
+&nbsp;&nbsp;<br>
+&gt;&gt;&gt;&nbsp;flickr_api.set_authorization_handler(a)<br>
+&nbsp;<br>
+The&nbsp;authorization&nbsp;handler&nbsp;can&nbsp;also&nbsp;be&nbsp;saved&nbsp;and&nbsp;loaded&nbsp;:<br>
+&gt;&gt;&gt;&nbsp;a.write(filename)<br>
+&gt;&gt;&gt;&nbsp;a&nbsp;=&nbsp;<a href="#AuthHandler">AuthHandler</a>.load(filename)<br>
+&nbsp;<br>
+Author&nbsp;:&nbsp;Alexis&nbsp;Mignon<br>
+e-mail&nbsp;:&nbsp;alexis.mignon@gmail.com<br>
+Date&nbsp;&nbsp;&nbsp;:&nbsp;06/08/2011</tt></p>
+<p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#aa55cc">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#ffffff" face="helvetica, arial"><big><strong>Modules</strong></big></font></td></tr>
+    
+<tr><td bgcolor="#aa55cc"><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</tt></td><td>&nbsp;</td>
+<td width="100%"><table width="100%" summary="list"><tr><td width="25%" valign=top><a href="oauth.oauth.html">oauth.oauth</a><br>
+</td><td width="25%" valign=top><a href="time.html">time</a><br>
+</td><td width="25%" valign=top><a href="urllib2.html">urllib2</a><br>
+</td><td width="25%" valign=top><a href="urlparse.html">urlparse</a><br>
+</td></tr></table></td></tr></table><p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#ee77aa">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#ffffff" face="helvetica, arial"><big><strong>Classes</strong></big></font></td></tr>
+    
+<tr><td bgcolor="#ee77aa"><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</tt></td><td>&nbsp;</td>
+<td width="100%"><dl>
+<dt><font face="helvetica, arial"><a href="__builtin__.html#object">__builtin__.object</a>
+</font></dt><dd>
+<dl>
+<dt><font face="helvetica, arial"><a href="flickr_api.auth.html#AuthHandler">AuthHandler</a>
+</font></dt></dl>
+</dd>
+<dt><font face="helvetica, arial"><a href="exceptions.html#Exception">exceptions.Exception</a>(<a href="exceptions.html#BaseException">exceptions.BaseException</a>)
+</font></dt><dd>
+<dl>
+<dt><font face="helvetica, arial"><a href="flickr_api.auth.html#AuthHandlerError">AuthHandlerError</a>
+</font></dt></dl>
+</dd>
+</dl>
+ <p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#ffc8d8">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#000000" face="helvetica, arial"><a name="AuthHandler">class <strong>AuthHandler</strong></a>(<a href="__builtin__.html#object">__builtin__.object</a>)</font></td></tr>
+    
+<tr><td bgcolor="#ffc8d8"><tt>&nbsp;&nbsp;&nbsp;</tt></td><td>&nbsp;</td>
+<td width="100%">Methods defined here:<br>
+<dl><dt><a name="AuthHandler-__init__"><strong>__init__</strong></a>(self, key<font color="#909090">='a78268c8fc5ce139d0c66f6b4b3f1ffb'</font>, secret<font color="#909090">='c9f424e1c31d7939'</font>, callback<font color="#909090">=None</font>, access_token_key<font color="#909090">=None</font>, access_token_secret<font color="#909090">=None</font>)</dt></dl>
+
+<dl><dt><a name="AuthHandler-complete_parameters"><strong>complete_parameters</strong></a>(self, url, params<font color="#909090">={}</font>, exclude_signature<font color="#909090">=[]</font>)</dt></dl>
+
+<dl><dt><a name="AuthHandler-get_authorization_url"><strong>get_authorization_url</strong></a>(self, perms<font color="#909090">='read'</font>)</dt></dl>
+
+<dl><dt><a name="AuthHandler-save"><strong>save</strong></a>(self, filename)</dt></dl>
+
+<dl><dt><a name="AuthHandler-set_verifier"><strong>set_verifier</strong></a>(self, oauth_verifier)</dt></dl>
+
+<dl><dt><a name="AuthHandler-write"><strong>write</strong></a>(self, filename)</dt></dl>
+
+<hr>
+Static methods defined here:<br>
+<dl><dt><a name="AuthHandler-create"><strong>create</strong></a>(token_key, token_secret)</dt></dl>
+
+<dl><dt><a name="AuthHandler-load"><strong>load</strong></a>(filename<font color="#909090">=None</font>)</dt></dl>
+
+<hr>
+Data descriptors defined here:<br>
+<dl><dt><strong>__dict__</strong></dt>
+<dd><tt>dictionary&nbsp;for&nbsp;instance&nbsp;variables&nbsp;(if&nbsp;defined)</tt></dd>
+</dl>
+<dl><dt><strong>__weakref__</strong></dt>
+<dd><tt>list&nbsp;of&nbsp;weak&nbsp;references&nbsp;to&nbsp;the&nbsp;object&nbsp;(if&nbsp;defined)</tt></dd>
+</dl>
+</td></tr></table> <p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#ffc8d8">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#000000" face="helvetica, arial"><a name="AuthHandlerError">class <strong>AuthHandlerError</strong></a>(<a href="exceptions.html#Exception">exceptions.Exception</a>)</font></td></tr>
+    
+<tr><td bgcolor="#ffc8d8"><tt>&nbsp;&nbsp;&nbsp;</tt></td><td>&nbsp;</td>
+<td width="100%"><dl><dt>Method resolution order:</dt>
+<dd><a href="flickr_api.auth.html#AuthHandlerError">AuthHandlerError</a></dd>
+<dd><a href="exceptions.html#Exception">exceptions.Exception</a></dd>
+<dd><a href="exceptions.html#BaseException">exceptions.BaseException</a></dd>
+<dd><a href="__builtin__.html#object">__builtin__.object</a></dd>
+</dl>
+<hr>
+Data descriptors defined here:<br>
+<dl><dt><strong>__weakref__</strong></dt>
+<dd><tt>list&nbsp;of&nbsp;weak&nbsp;references&nbsp;to&nbsp;the&nbsp;object&nbsp;(if&nbsp;defined)</tt></dd>
+</dl>
+<hr>
+Methods inherited from <a href="exceptions.html#Exception">exceptions.Exception</a>:<br>
+<dl><dt><a name="AuthHandlerError-__init__"><strong>__init__</strong></a>(...)</dt><dd><tt>x.<a href="#AuthHandlerError-__init__">__init__</a>(...)&nbsp;initializes&nbsp;x;&nbsp;see&nbsp;x.__class__.__doc__&nbsp;for&nbsp;signature</tt></dd></dl>
+
+<hr>
+Data and other attributes inherited from <a href="exceptions.html#Exception">exceptions.Exception</a>:<br>
+<dl><dt><strong>__new__</strong> = &lt;built-in method __new__ of type object&gt;<dd><tt>T.<a href="#AuthHandlerError-__new__">__new__</a>(S,&nbsp;...)&nbsp;-&gt;&nbsp;a&nbsp;new&nbsp;<a href="__builtin__.html#object">object</a>&nbsp;with&nbsp;type&nbsp;S,&nbsp;a&nbsp;subtype&nbsp;of&nbsp;T</tt></dl>
+
+<hr>
+Methods inherited from <a href="exceptions.html#BaseException">exceptions.BaseException</a>:<br>
+<dl><dt><a name="AuthHandlerError-__delattr__"><strong>__delattr__</strong></a>(...)</dt><dd><tt>x.<a href="#AuthHandlerError-__delattr__">__delattr__</a>('name')&nbsp;&lt;==&gt;&nbsp;del&nbsp;x.name</tt></dd></dl>
+
+<dl><dt><a name="AuthHandlerError-__getattribute__"><strong>__getattribute__</strong></a>(...)</dt><dd><tt>x.<a href="#AuthHandlerError-__getattribute__">__getattribute__</a>('name')&nbsp;&lt;==&gt;&nbsp;x.name</tt></dd></dl>
+
+<dl><dt><a name="AuthHandlerError-__getitem__"><strong>__getitem__</strong></a>(...)</dt><dd><tt>x.<a href="#AuthHandlerError-__getitem__">__getitem__</a>(y)&nbsp;&lt;==&gt;&nbsp;x[y]</tt></dd></dl>
+
+<dl><dt><a name="AuthHandlerError-__getslice__"><strong>__getslice__</strong></a>(...)</dt><dd><tt>x.<a href="#AuthHandlerError-__getslice__">__getslice__</a>(i,&nbsp;j)&nbsp;&lt;==&gt;&nbsp;x[i:j]<br>
+&nbsp;<br>
+Use&nbsp;of&nbsp;negative&nbsp;indices&nbsp;is&nbsp;not&nbsp;supported.</tt></dd></dl>
+
+<dl><dt><a name="AuthHandlerError-__reduce__"><strong>__reduce__</strong></a>(...)</dt></dl>
+
+<dl><dt><a name="AuthHandlerError-__repr__"><strong>__repr__</strong></a>(...)</dt><dd><tt>x.<a href="#AuthHandlerError-__repr__">__repr__</a>()&nbsp;&lt;==&gt;&nbsp;repr(x)</tt></dd></dl>
+
+<dl><dt><a name="AuthHandlerError-__setattr__"><strong>__setattr__</strong></a>(...)</dt><dd><tt>x.<a href="#AuthHandlerError-__setattr__">__setattr__</a>('name',&nbsp;value)&nbsp;&lt;==&gt;&nbsp;x.name&nbsp;=&nbsp;value</tt></dd></dl>
+
+<dl><dt><a name="AuthHandlerError-__setstate__"><strong>__setstate__</strong></a>(...)</dt></dl>
+
+<dl><dt><a name="AuthHandlerError-__str__"><strong>__str__</strong></a>(...)</dt><dd><tt>x.<a href="#AuthHandlerError-__str__">__str__</a>()&nbsp;&lt;==&gt;&nbsp;str(x)</tt></dd></dl>
+
+<dl><dt><a name="AuthHandlerError-__unicode__"><strong>__unicode__</strong></a>(...)</dt></dl>
+
+<hr>
+Data descriptors inherited from <a href="exceptions.html#BaseException">exceptions.BaseException</a>:<br>
+<dl><dt><strong>__dict__</strong></dt>
+</dl>
+<dl><dt><strong>args</strong></dt>
+</dl>
+<dl><dt><strong>message</strong></dt>
+</dl>
+</td></tr></table></td></tr></table><p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#eeaa77">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#ffffff" face="helvetica, arial"><big><strong>Functions</strong></big></font></td></tr>
+    
+<tr><td bgcolor="#eeaa77"><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</tt></td><td>&nbsp;</td>
+<td width="100%"><dl><dt><a name="-set_auth_handler"><strong>set_auth_handler</strong></a>(auth_handler)</dt></dl>
+ <dl><dt><a name="-token_factory"><strong>token_factory</strong></a>(filename<font color="#909090">=None</font>, token_key<font color="#909090">=None</font>, token_secret<font color="#909090">=None</font>)</dt></dl>
+</td></tr></table><p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#55aa55">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#ffffff" face="helvetica, arial"><big><strong>Data</strong></big></font></td></tr>
+    
+<tr><td bgcolor="#55aa55"><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</tt></td><td>&nbsp;</td>
+<td width="100%"><strong>ACCESS_TOKEN_URL</strong> = 'http://www.flickr.com/services/oauth/access_token'<br>
+<strong>API_KEY</strong> = 'a78268c8fc5ce139d0c66f6b4b3f1ffb'<br>
+<strong>API_SECRET</strong> = 'c9f424e1c31d7939'<br>
+<strong>AUTHORIZE_URL</strong> = 'http://www.flickr.com/services/oauth/authorize'<br>
+<strong>AUTH_HANDLER</strong> = None<br>
+<strong>TOKEN_REQUEST_URL</strong> = 'http://www.flickr.com/services/oauth/request_token'</td></tr></table>
+</body></html>
