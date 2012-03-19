@@ -1,0 +1,39 @@
+#summary Why The New Object API ?
+= Introduction =
+From my point of the the original code of the Object API was extremely redundant and difficult to browse because of its large size. A big part of its size was due to the documentation which I had manually copied from the Flickr API documentation.
+
+In the new version of the Object API, most of the repetitive code has been removed and replace either by some helper function or more interestingly by an extensive use
+of decorators and meta programming.
+
+This gives a more compact code and I hope easier to maintain.
+
+
+= 'caller' and 'static_caller' decorators =
+Since an object methods is an abstraction of the call to a Flickr API method, I wanted the code to reflect this relation. Now an Object method bound to a Flickr API method is explicitly indicated as such through the use of the 'caller' decorator.
+
+For instance this is the code of the 'Photo.search' method:
+{{{
+    @static_caller("flickr.photos.search")
+    def search(**args):        
+        args = _format_id("user",args)
+        args = _format_extras(args)
+        return args,_extract_photo_list
+}}}
+
+Since this is a static method we use the 'static_caller' decorator which take as argument the Flickr API method it uses internally. The body of the function does two things:
+ # It pre-format the arguments that we be use for the api call
+ # It returns a function that will process the result from Flickr API and reformat it into Objects.
+
+Written this way the code makes explicit the way the binding is done:
+ # Which api method is called ?
+ # Do the arguments need to be pre-formated ?
+ # How to interpret the respsonse from Flickr servers ?
+
+= Where is the documentation ? = 
+
+This is a controversial point. The code is generated dynamically from the method descriptions given by Flickr through the `flickr.reflection.getMethodInfo` api method.
+
+Since make calls to flickr servers for all methods can take time it has been done once for all and the result is saved as a dictionnary into the 'methods' module which is automatically generated using the `write_reflection` function from the `tools` module. You have two ways to have access to the documentation of a method:
+ # in the interactive console (by using either help(method) or print method.__doc__)
+ # or using pydoc which generates the documentation automatically, so you have a nice browsable html documentation.
+
