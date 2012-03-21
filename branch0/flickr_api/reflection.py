@@ -1,8 +1,20 @@
+"""
+    Reflection module.
+
+    This modules implements the bases of the reflection mechanisms of
+    'flikr_api'.
+    
+    author: Alexis Mignon (c) 2012
+    e-mail: alexis.mignon@gmail.com
+    date : 21/03/2012
+"""
+
 import re
 import inspect
 from functools import wraps
 import method_call
 import auth
+from flickrerrors import FlickrError
 
 try :
     from methods import __methods__
@@ -74,6 +86,25 @@ except ImportError :
 LIST_REG = re.compile(r'<ul>(.*?)</ul>',re.DOTALL|re.UNICODE|re.MULTILINE)
 LIST_ITEM_REG = re.compile(r'<li>(.*?)</li>',re.DOTALL|re.UNICODE)
 
+__bindings__ = {}
+
+def bindings_to(flickr_method):
+    """
+        Returns the list of bindings to the given Flickr API method
+        in the object API.
+        
+        ex:
+        >>> bindings_to("flickr.people.getPhotos")
+        ['Person.getPhotos']
+        this tells that the method from Flickr API 'flickr.people.getPhotos'
+        is bound to the 'Person.getPhotos' method of the object API.
+    """
+    try :
+        return __bindings__[flickr_method]
+    except KeyError :
+        if flickr_method in __methods__ : return []
+        else : raise FlickrError("Unknown Flickr API method: %s"%flickr_method)
+
 class FlickrAutoDoc(type):
     """
         Meta class that adds documentation to methods that bind
@@ -106,6 +137,10 @@ class FlickrAutoDoc(type):
                                                 # to know the arument name to use to refer
                                                 # to the current object.
                     v.__doc__ = make_docstring(v.flickr_method,ignore_arguments,show_errors = False)
+                try :
+                    __bindings__[v.flickr_method].append(classname + "." + k)
+                except KeyError :
+                    __bindings__[v.flickr_method] = [classname + "." + k]
         return type.__new__(meta,classname,bases,classDict)
 
 
