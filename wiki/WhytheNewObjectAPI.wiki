@@ -29,6 +29,9 @@ Written this way the code makes explicit the way the binding is done:
  # Do the arguments need to be pre-formated ?
  # How to interpret the respsonse from Flickr servers ?
 
+Note that `static_caller` inherits from `staticmethod` so you must not add the
+static method decorator.
+
 = Where is the documentation ? = 
 
 This is a controversial point. The code is generated dynamically from the method descriptions given by Flickr through the `flickr.reflection.getMethodInfo` api method.
@@ -37,3 +40,21 @@ Since make calls to flickr servers for all methods can take time it has been don
  # in the interactive console (by using either help(method) or print method.__doc__)
  # or using pydoc which generates the documentation automatically, so you have a nice browsable html documentation.
 
+= How does reflection work ? = 
+
+First the documentation for all flickr method has be downloaded using `flickr.reflection.getMethods` to get the list of Flickr API methods, and then
+`flickr.reflection.methodInfo` to get the documentation of each method. The result is stored as a dictionnary in the `flickr_api.methods` module.
+
+The reflection mechanism for the object api (available from `flickr_api.objects`) is then implemented in the `flickr_api.reflection` module and consists in two main components:
+ # The `caller` and `static_caller` decorators.
+ # The `FlickrAutoDoc` meta class.
+
+Both components act together to add the reflection capabilities. The `caller` and `static_caller` decorators add a `flickr_method` as well as a `isstatic` attribtues to each method. This allows the user to know which Flickr method is used
+to access Flickr's servers. It is also used by the meta class `FlickrAutoDoc` to dynamically add the documentation of the method. 
+`FlickrAutoDoc` also keep tracks of the bindings between Flickr methods and object methods so you can know which object methods are bound to a given Flickr method using the `bindings_to` function:
+
+{{{
+>>> from flickr_api import reflection
+>>> reflection.bindings_to("flickr.people.getPhotos")
+['Person.getPhotos']
+}}}
