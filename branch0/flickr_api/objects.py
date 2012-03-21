@@ -607,8 +607,8 @@ class Person(FlickrObject):
             return groups_
         return args,format_result
 
-    @caller("flickr.people.getUploadStatus")
-    def getUploadStatus(self,**args):
+    @static_caller("flickr.people.getUploadStatus")
+    def getUploadStatus(**args):
         return args,lambda r : r["user"]
 
     @caller("flickr.collections.getTree")
@@ -622,17 +622,6 @@ class Person(FlickrObject):
                 collections_.append(Collection(token = token,sets = sets_,**c))
             return collections_
         return _format_id("collection",args),format_result
-
-    @caller("flickr.photos.getContactsPhotos")
-    def getContactsPhotos(self,**args):
-        def format_result(r,token = None):
-            photos = r["photos"]["photo"]
-            photos_ = []
-            for p in photos :
-                photos_.append(Photo(token = token,**p))
-            return photos_
-        return args,format_result
-
 
     @caller("flickr.photos.getContactsPublicPhotos")
     def getContactsPublicPhotos(self,**args):
@@ -804,6 +793,16 @@ class Photo(FlickrObject):
                 photo["sizes"] = dict([(s['label'],s) for s in sizes["size"]])
             
             return photo
+        return args,format_result
+
+    @caller("flickr.photos.getContactsPhotos")
+    def getContactsPhotos(self,**args):
+        def format_result(r,token = None):
+            photos = r["photos"]["photo"]
+            photos_ = []
+            for p in photos :
+                photos_.append(Photo(token = token,**p))
+            return photos_
         return args,format_result
 
     @caller("flickr.photos.getContext")

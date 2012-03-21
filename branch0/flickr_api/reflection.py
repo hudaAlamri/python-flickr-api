@@ -24,6 +24,9 @@ try :
         
         doc = """
     flickr method: %(method)s
+    
+    Description:
+%(description)s
 
     Authentication:
             %(authentication)s
@@ -31,6 +34,7 @@ try :
     Arguments:
 %(arguments)s
     """
+        context["description"] = format_block(info["description"],80," "*8)
         needs_login = info["needslogin"]
         required = info["requiredperms"]
         if needs_login :
