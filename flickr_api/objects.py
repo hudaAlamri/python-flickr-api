@@ -190,7 +190,7 @@ class Collection(FlickrObject):
     __self_name__ = ["collection_id"]
 
     @caller("flickr.collections.getInfo")
-    def getInfo(self):
+    def getInfo(self,**args):
         def format_result(r):
             collection = r["collection"]
             icon_photos = _check_list(collection["iconphotos"]["photo"])
@@ -526,7 +526,7 @@ class Person(FlickrObject):
         return _format_extras(args),_extract_photo_list
 
     @caller("flickr.photosets.getList")
-    def getPhotosets(self):
+    def getPhotosets(self,**args):
         def format_result(r,token = None):
             info = r["photosets"]
             photosets = info.pop("photoset")
@@ -679,15 +679,15 @@ class Photo(FlickrObject):
             return args,_none
 
         @caller("flickr.photos.notes.delete")
-        def delete(self):
+        def delete(self,**args):
             return args,_none
 
     @caller("flickr.photos.people.delete")
-    def deletePerson(self):
+    def deletePerson(self,**args):
         return _format_id("user",args),_none
         
     @caller("flickr.photos.people.deleteCoords")
-    def deletePersonCoords(self):
+    def deletePersonCoords(self,**args):
         return _format_id("user",args),_none
 
     @caller("flickr.photos.people.editCoords")
@@ -735,7 +735,7 @@ class Photo(FlickrObject):
         return args,_none
 
     @caller("flickr.photos.getAllContexts")
-    def getAllContexts(self):
+    def getAllContexts(self,**args):
         def format_result(r,token = None):
             photosets = []
             if r.has_key("set"):
@@ -812,7 +812,7 @@ class Photo(FlickrObject):
         return args,format_result
 
     @caller("flickr.photos.getExif")
-    def getExif(self):
+    def getExif(self,**args):
         if hasattr(self,"secret"):
             args["secret"] = self.secret
 
@@ -865,11 +865,11 @@ class Photo(FlickrObject):
         return args,format_result
 
     @caller("flickr.photos.geo.getPerms")
-    def getGeoPerms(self):
+    def getGeoPerms(self,**args):
         return args,lambda r,token :  GeoPerms(token = token,**r["perms"])
 
     @caller("flickr.photos.geo.getLocation")
-    def getLocation(self):
+    def getLocation(self,**args):
         def format_result(r):
             loc = r["photo"]["location"]
             return Location(token = token,photo = self, **loc)
@@ -1062,7 +1062,7 @@ class Photo(FlickrObject):
         return args,_none
     
     @caller("flickr.photos.geo.removeLocation")
-    def removeLocation(self):
+    def removeLocation(self,**args):
         return args,_none
 
     @caller("flickr.photos.transform.rotate")
