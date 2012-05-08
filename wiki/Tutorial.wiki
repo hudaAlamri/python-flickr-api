@@ -29,7 +29,7 @@ Here is an example of how to get this authentication token.
 
 {{{
 >>> import flickr_api
->>> a = flickr_api.AuthHandler() #creates the AuthHandler object
+>>> a = flickr_api.auth.AuthHandler() #creates the AuthHandler object
 >>> perms = "read" # set the required permissions
 >>> url = a.get_authorization_url(perms)
 >>> print url
