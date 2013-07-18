@@ -116,9 +116,16 @@ To have direct access to user you have 3 methods
 
  * Get photos from a user
 {{{
->>> photos,resp_infos = user.getPhotos()       # if authenticated
->>> photos,resp_infos = user.getPublicPhotos() # otherwise
+>>> photos = user.getPhotos()       # if authenticated
+>>> photos = user.getPublicPhotos() # otherwise
 }}}
+Some information about the response from the server, e.g. pagination information, are available in the `info` attribute of the `photos` list:
+{{{
+>>> print photos.pages # the number of available pages of results
+>>> print photos.page  # the current page number
+>>> print photos.total # total number of photos
+}}}
+
  * Download a photo 
 {{{
 >>> p.save(filename, size_label = 'Medium 640') # downloading the photo file
