@@ -121,9 +121,9 @@ To have direct access to user you have 3 methods
 }}}
 Some information about the response from the server, e.g. pagination information, are available in the `info` attribute of the `photos` list:
 {{{
->>> print photos.pages # the number of available pages of results
->>> print photos.page  # the current page number
->>> print photos.total # total number of photos
+>>> print photos.info.pages # the number of available pages of results
+>>> print photos.info.page  # the current page number
+>>> print photos.info.total # total number of photos
 }}}
 
  * Download a photo 
